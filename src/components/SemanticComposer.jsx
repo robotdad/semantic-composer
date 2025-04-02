@@ -197,11 +197,47 @@ const SemanticComposer = forwardRef((props, ref) => {
   // Toggle between edit and read modes
   const toggleMode = () => {
     const newMode = mode === 'edit' ? 'read' : 'edit';
-    setMode(newMode);
     
-    // For rich mode, set editor readonly state
-    if (view === 'rich' && crepeRef.current) {
-      crepeRef.current.setReadonly(newMode === 'read' || readOnly);
+    // If in raw mode and trying to switch to read mode,
+    // we need to switch to rich mode first then set readonly
+    if (view === 'raw' && newMode === 'read') {
+      // First switch to rich view
+      try {
+        // We'll need to save the current content to initialize the editor with
+        const rawContent = content;
+        
+        if (debug) {
+          console.log('Switching from raw to read mode via rich view');
+        }
+        
+        // First switch view to rich, which will trigger editor initialization
+        setView('rich');
+        
+        // Then mark as read-only in the next render cycle 
+        // (after editor is initialized)
+        setTimeout(() => {
+          setMode('read');
+          
+          // If editor has been created by now, set it to readonly
+          if (crepeRef.current) {
+            crepeRef.current.setReadonly(true);
+          }
+        }, 50);
+        
+        return; // Exit early to avoid setting mode directly
+      } catch (error) {
+        console.error('Error transitioning from raw to read:', error);
+        if (onError) onError(new Error(`Error transitioning from raw to read: ${error.message}`));
+      }
+    }
+    // Normal case - just toggle mode
+    else {
+      setMode(newMode);
+      
+      // For rich mode, set editor readonly state
+      if (view === 'rich' && crepeRef.current) {
+        crepeRef.current.setReadonly(newMode === 'read' || readOnly);
+      }
     }
     
     if (onModeChange) onModeChange(newMode);
@@ -479,7 +515,11 @@ const SemanticComposer = forwardRef((props, ref) => {
       <div className="editor-content">
         {view === 'rich' ? (
           // Single Milkdown instance for both edit and read modes
-          <div ref={editorRef} className={`milkdown-editor-wrapper ${mode === 'read' ? 'read-only' : ''}`} />
+          <div 
+            ref={editorRef} 
+            className={`milkdown-editor-wrapper ${mode === 'read' ? 'read-only' : ''}`}
+            style={{ minHeight: '200px' }} // Ensure enough space for editor to render
+          />
         ) : mode === 'edit' ? (
           // Raw mode (only available in edit mode)
           <textarea
@@ -490,10 +530,13 @@ const SemanticComposer = forwardRef((props, ref) => {
             spellCheck={spellCheck}
             autoFocus={autoFocus}
             readOnly={readOnly}
-            style={{ height: (typeof content === 'string' ? content.split('\n').length : 1) * 1.6 + 'em' }} // Auto-grow based on content
+            style={{ 
+              minHeight: '200px',
+              height: (typeof content === 'string' ? content.split('\n').length : 1) * 1.6 + 'em' 
+            }}
           />
         ) : (
-          // Fallback for read mode when view is raw (should never happen in normal usage)
+          // Fallback for read mode when view is raw (should never happen after our fix)
           <div className="raw-preview">{typeof content === 'string' ? content : ''}</div>
         )}
       </div>
