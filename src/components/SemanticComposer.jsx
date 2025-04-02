@@ -74,10 +74,8 @@ const SemanticComposer = forwardRef((props, ref) => {
   // Ensure initialValue is a string
   const safeInitialValue = typeof initialValue === 'string' ? initialValue : '';
   
-  // Helper functions for storage management
-  const getStorageKey = (suffix) => `${storageKey}:${suffix}`;
-  const contentKey = getStorageKey('content');
-  const rawTempKey = getStorageKey('raw-temp');
+  // Storage key for content
+  const contentKey = `${storageKey}:content`;
   
   // Simple state setup - no complex initialization
   const [mode, setMode] = useState(defaultMode);
@@ -337,13 +335,12 @@ const SemanticComposer = forwardRef((props, ref) => {
         if (typeof editorContent === 'string' && editorContent !== '<br />') {
           // Save to React state for raw editor
           setContent(editorContent);
-          // Also save to localStorage as backup
+          // Also save to localStorage
           try {
-            localStorage.setItem(rawTempKey, editorContent);
             localStorage.setItem(contentKey, editorContent);
             
             if (debug) {
-              console.log(`Saved content to ${rawTempKey} and ${contentKey} for raw mode transition`);
+              console.log(`Saved content to ${contentKey} for raw mode transition`);
             }
           } catch (error) {
             console.error('Error saving content during view toggle:', error);
@@ -392,13 +389,12 @@ const SemanticComposer = forwardRef((props, ref) => {
     setContent(newContent);
     if (onChange) onChange(newContent);
     
-    // Also save to localStorage for persistence between mode switches
+    // Save to localStorage for persistence
     try {
-      localStorage.setItem(rawTempKey, newContent);
       localStorage.setItem(contentKey, newContent);
       
       if (debug) {
-        console.log(`Raw editor change: saved to ${rawTempKey} and ${contentKey}`);
+        console.log(`Raw editor change: saved to ${contentKey}`);
       }
     } catch (error) {
       console.error('Error saving raw editor content:', error);
