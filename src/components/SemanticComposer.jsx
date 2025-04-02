@@ -22,28 +22,29 @@ import './SemanticComposer.css';
  *    - Raw mode: React state is the source of truth
  *    - Mode transitions require explicit syncing between these sources
  * 
- * 4. Critical Crepe behavior:
- *    - When switching from rich edit → read mode, React state must be updated first
- *    - This is because setReadonly() triggers ProseMirror re-render that may use state
- *    - Missing this step causes content to be lost when toggling to read mode
- *    - We capture editor content into React state before toggling readonly
- * 
- * 5. View transitions:
- *    - Rich → Raw: Get content from editor, store in React state for textarea
- *    - Raw → Rich: Use React state to initialize new editor instance
- *    - Both transitions require explicit content transfer
- * 
- * 6. Persistence model:
- *    - Auto-save enabled by default as a safety net (5 second interval)
- *    - Component uses localStorage only for temporary session state
+ * 4. Persistence philosophy:
+ *    - Auto-save enabled by default as a safety net for unsaved changes
+ *    - Component uses localStorage only for temporary state
  *    - localStorage is cleaned up when component unmounts
  *    - Parent application should handle permanent storage via callbacks
  *    - onSave/onChange callbacks notify parent when content changes
  * 
- * 7. Initialization:
+ * 5. HTML tag handling:
+ *    - The editor sometimes includes <br /> tags in table cells and at document end
+ *    - These tags are automatically removed when switching to raw or read mode
+ *    - This prevents users from seeing HTML artifacts in the markdown
+ *    - Cleanup is targeted specifically to table cells to avoid affecting user content
+ * 
+ * 6. Initialization:
  *    - Initial content comes from props or parent app
  *    - Simple state model with no complex initialization logic
  *    - Avoid useState initialization functions to prevent double-rendering
+ * 
+ * 7. Dependencies and Effects:
+ *    - CRITICAL: useEffect dependency arrays are intentionally incomplete
+ *    - Adding 'content' to dependency arrays causes content loss during mode transitions
+ *    - ESLint warnings are suppressed for these arrays to prevent future regressions
+ *    - Do not add content-related dependencies without thorough testing
  */
 /**
  * Semantic Composer - A markdown editor component with rich/raw editing modes
@@ -210,15 +211,8 @@ const SemanticComposer = forwardRef((props, ref) => {
                   // Update React state and notify parent
                   setContent(markdown);
                   if (onChange) onChange(markdown);
-                  
-                  // Log content changes to debug
-                  console.log('Content updated:', markdown.substring(0, 30));
                 }
               });
-              
-              // Track focus/blur events
-              listener.focus(() => console.log('Editor focused'));
-              listener.blur(() => console.log('Editor blurred'));
             });
             
             if (debug) {
@@ -259,6 +253,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         }
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, safeInitialValue, mode, readOnly, debug, onChange, onError]);
   
   // Update read-only state when mode changes
@@ -276,7 +271,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         }
       }
     }
-  }, [mode, view, readOnly]);
+  }, [mode, view, readOnly, editorRef]);
   
   // Toggle between edit and read modes
   const toggleMode = () => {
@@ -287,8 +282,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     if (view === 'raw' && newMode === 'read') {
       // First switch to rich view
       try {
-        // We'll need to save the current content to initialize the editor with
-        const rawContent = content;
+        // Content is already in state, no need for local variable
         
         if (debug) {
           console.log('Switching from raw to read mode via rich view');
@@ -321,8 +315,14 @@ const SemanticComposer = forwardRef((props, ref) => {
         try {
           // Update React state from editor content
           const currentContent = crepeRef.current.getMarkdown();
+          
           if (typeof currentContent === 'string') {
-            setContent(currentContent);
+            // Clean up <br> tags in table cells for read mode too
+            const cleanedContent = cleanupBrTags(currentContent);
+            setContent(cleanedContent);
+            if (debug) {
+              console.log('RICH TO READ - CLEANED CONTENT SAVED TO STATE:', cleanedContent);
+            }
           }
         } catch (error) {
           console.error('Error getting content during mode toggle:', error);
@@ -341,6 +341,30 @@ const SemanticComposer = forwardRef((props, ref) => {
     if (onModeChange) onModeChange(newMode);
   };
   
+  // Utility function to clean <br /> tags from table cells and document end
+  const cleanupBrTags = (markdown) => {
+    if (!markdown) return markdown;
+    
+    // Split the markdown into lines for processing
+    const lines = markdown.split('\n');
+    const cleanedLines = lines.map(line => {
+      // Only process table rows (lines starting with |)
+      if (line.trim().startsWith('|')) {
+        // Replace <br /> tags in table cells with empty string
+        return line.replace(/<br\s*\/?>/g, '');
+      }
+      return line;
+    });
+    
+    // Join lines back together
+    let result = cleanedLines.join('\n');
+    
+    // Remove trailing <br /> at the end of the document
+    result = result.replace(/\n<br\s*\/?>\s*$/, '\n');
+    
+    return result;
+  };
+  
   // Toggle between rich and raw editing modes (edit mode only)
   const toggleView = () => {
     if (mode !== 'edit') return;
@@ -355,12 +379,16 @@ const SemanticComposer = forwardRef((props, ref) => {
         const editorContent = crepeRef.current.getMarkdown();
         
         // Save this content for the raw editor to use
-        if (typeof editorContent === 'string' && editorContent !== '<br />') {
-          // Save to React state for raw editor
-          setContent(editorContent);
+        if (typeof editorContent === 'string') {
+          // Clean up <br> tags in table cells before saving to React state
+          const cleanedContent = cleanupBrTags(editorContent);
+          
+          // Save cleaned content to React state for raw editor
+          setContent(cleanedContent);
+          
           // Also save to localStorage
           try {
-            localStorage.setItem(contentKey, editorContent);
+            localStorage.setItem(contentKey, cleanedContent);
             
             if (debug) {
               console.log(`Saved content to ${contentKey} for raw mode transition`);
@@ -392,6 +420,14 @@ const SemanticComposer = forwardRef((props, ref) => {
     else if (view === 'raw') {
       // When switching back to rich, content from React state will
       // be used to initialize the editor in the useEffect
+      
+      if (debug) {
+        console.log('RAW TO RICH - CONTENT FROM STATE:');
+        console.log(content);
+        console.log('HAS <br> TAGS:', content.includes('<br'));
+        console.log('POSITION OF <br>:', content.indexOf('<br'));
+      }
+      
       if (debug) {
         console.log('Switching to rich mode with content from state:', 
                   content ? content.substring(0, 30) + '...' : 'empty');
@@ -509,6 +545,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         if (onError) onError(new Error(`Error updating content: ${error.message}`));
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValue]);
   
   // Auto-save functionality (active by default)
@@ -543,6 +580,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     }, autoSaveInterval);
 
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSaveInterval, debug, contentKey, view, content, onSave]);
   
   // Keyboard shortcuts
