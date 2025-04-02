@@ -200,8 +200,15 @@ const SemanticComposer = forwardRef((props, ref) => {
                   // Update React state and notify parent
                   setContent(markdown);
                   if (onChange) onChange(markdown);
+                  
+                  // Log content changes to debug
+                  console.log('Content updated:', markdown.substring(0, 30));
                 }
               });
+              
+              // Track focus/blur events
+              listener.focus(() => console.log('Editor focused'));
+              listener.blur(() => console.log('Editor blurred'));
             });
             
             if (debug) {
@@ -288,35 +295,25 @@ const SemanticComposer = forwardRef((props, ref) => {
     }
     // Normal case - just toggle mode
     else {
-      // IMPORTANT: When going from rich edit → read, make sure we capture the content first
-      if (view === 'rich' && mode === 'edit' && newMode === 'read' && crepeRef.current) {
+      // For rich mode, ensure React state has latest content before toggling
+      if (view === 'rich' && crepeRef.current) {
         try {
-          // Get content from editor before setting readonly
+          // Update React state from editor content
           const currentContent = crepeRef.current.getMarkdown();
-          
-          // First update content state to ensure we have latest changes
           if (typeof currentContent === 'string') {
             setContent(currentContent);
           }
-          
-          // Now set mode and readonly
-          setMode(newMode);
-          crepeRef.current.setReadonly(true);
         } catch (error) {
-          console.error('Error capturing content before read mode:', error);
-          // Still set the mode even if there's an error
-          setMode(newMode);
-          if (crepeRef.current) crepeRef.current.setReadonly(true);
+          console.error('Error getting content during mode toggle:', error);
         }
-      } 
-      // All other transitions
+        
+        // Now update mode and readonly state
+        setMode(newMode);
+        crepeRef.current.setReadonly(newMode === 'read' || readOnly);
+      }
+      // For other views, just update mode
       else {
         setMode(newMode);
-        
-        // For rich mode, set editor readonly state
-        if (view === 'rich' && crepeRef.current) {
-          crepeRef.current.setReadonly(newMode === 'read' || readOnly);
-        }
       }
     }
     
