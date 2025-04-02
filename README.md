@@ -1,4 +1,4 @@
-# Cortex Composer
+# Semantic Composer
 
 An AI-powered markdown editor component built with React and Milkdown, designed for easy integration into various web applications.
 
@@ -31,12 +31,12 @@ npm install
 npm start
 ```
 
-This will start a development server at http://localhost:3000 where you can see the Cortex Composer component in action.
+This will start a development server at http://localhost:3000 where you can see the Semantic Composer component in action.
 
 ## Usage
 
 ```jsx
-import CortexComposer from './components/CortexComposer';
+import SemanticComposer from './components/SemanticComposer';
 
 function MyApp() {
   const handleChange = (markdown) => {
@@ -51,8 +51,8 @@ function MyApp() {
   return (
     <div className="app">
       <h1>My Markdown Editor</h1>
-      <CortexComposer
-        initialValue="# Welcome to Cortex Composer"
+      <SemanticComposer
+        initialValue="# Welcome to Semantic Composer"
         onChange={handleChange}
         onSave={handleSave}
         theme="light" // or "dark"

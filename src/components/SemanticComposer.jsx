@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Crepe } from '@milkdown/crepe';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
-import './CortexComposer.css';
+import './SemanticComposer.css';
 
 /**
- * Cortex Composer - A markdown editor component
+ * Semantic Composer - A markdown editor component
  * 
  * Implementation Notes:
  * --------------------
@@ -22,7 +22,7 @@ import './CortexComposer.css';
  *    - Targeting Milkdown's internal elements with specific CSS selectors
  *    - Setting !important on crucial typography styles
  */
-const CortexComposer = ({
+const SemanticComposer = ({
   initialValue = '',
   defaultMode = 'edit',
   defaultView = 'rich',
@@ -167,7 +167,7 @@ const CortexComposer = ({
         if (markdown) {
           setContent(markdown);
           if (onSave) onSave(markdown);
-          localStorage.setItem('cortex-composer-content', markdown);
+          localStorage.setItem('semantic-composer-content', markdown);
           return;
         }
       } catch (error) {
@@ -179,12 +179,12 @@ const CortexComposer = ({
     if (onSave) onSave(content);
     
     // Store in localStorage
-    localStorage.setItem('cortex-composer-content', content);
+    localStorage.setItem('semantic-composer-content', content);
   }, [view, content, onSave]);
   
   // Load from localStorage if available
   const handleLoad = () => {
-    const savedContent = localStorage.getItem('cortex-composer-content');
+    const savedContent = localStorage.getItem('semantic-composer-content');
     if (savedContent) {
       // Update state
       setContent(savedContent);
@@ -276,7 +276,7 @@ const CortexComposer = ({
   const insertCodeBlock = () => insertMarkdownSyntax('```\n', 'console.log("Hello World");\n```');
   
   return (
-    <div className="cortex-composer" data-theme={theme} style={{ width }}>
+    <div className="semantic-composer" data-theme={theme} style={{ width }}>
       <div className="composer-toolbar">
         {/* Left side - Formatting buttons (only in edit mode) */}
         {mode === 'edit' && (
@@ -354,4 +354,4 @@ const CortexComposer = ({
   );
 };
 
-export default CortexComposer;
+export default SemanticComposer;

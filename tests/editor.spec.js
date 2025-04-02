@@ -1,7 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-// Simple E2E tests to verify rendering behavior of Cortex Composer
+// Simple E2E tests to verify rendering behavior of Semantic Composer
 test('editor styling consistency between modes', async ({ page }) => {
   // Go to the editor page
   await page.goto('http://localhost:3000');

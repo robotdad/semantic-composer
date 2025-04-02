@@ -27,6 +27,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Component Pattern
 - Initialize Milkdown Crepe in useEffect
 - Use refs to maintain editor instance
-- Follow existing pattern in CortexComposer.jsx
+- Follow existing pattern in SemanticComposer.jsx
 - Implement dual view (rich/raw) toggle
 - Implement edit/preview mode toggle

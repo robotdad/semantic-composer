@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import './App.css';
-import CortexComposer from './components/CortexComposer';
+import SemanticComposer from './components/SemanticComposer';
 
 function App() {
-  const [markdown, setMarkdown] = useState('# Welcome to Cortex Composer Demo\n\nThis is a **demo** of the AI-powered markdown editor component.\n\n## Features\n\n- Edit/Read mode toggle\n- Rich/Raw markdown toggle\n- Code block support with syntax highlighting\n\n```javascript\nfunction hello() {\n  console.log("Hello, world!");\n}\n```\n\n| Feature | Status |\n| ------- | ------ |\n| Basic Formatting | ✅ |\n| Code Blocks | ✅ |\n| Tables | ✅ |\n');
+  const [markdown, setMarkdown] = useState('# Welcome to Semantic Composer Demo\n\nThis is a **demo** of the AI-powered markdown editor component.\n\n## Features\n\n- Edit/Read mode toggle\n- Rich/Raw markdown toggle\n- Code block support with syntax highlighting\n\n```javascript\nfunction hello() {\n  console.log("Hello, world!");\n}\n```\n\n| Feature | Status |\n| ------- | ------ |\n| Basic Formatting | ✅ |\n| Code Blocks | ✅ |\n| Tables | ✅ |\n');
   const [theme, setTheme] = useState('light');
 
   const handleChange = (value) => {
@@ -34,7 +34,7 @@ function App() {
   return (
     <div className="app" data-theme={theme}>
       <header className="app-header">
-        <h1>Cortex Composer Demo</h1>
+        <h1>Semantic Composer Demo</h1>
         <div className="action-buttons">
           <button onClick={loadSaved}>Load Saved</button>
           <button onClick={() => handleSave(markdown)}>Save</button>
@@ -44,7 +44,7 @@ function App() {
         </div>
       </header>
       <main className="app-main">
-        <CortexComposer
+        <SemanticComposer
           initialValue={markdown}
           onChange={handleChange}
           onSave={handleSave}
@@ -53,7 +53,7 @@ function App() {
         />
       </main>
       <footer className="app-footer">
-        <p>Cortex Composer: AI-Powered Markdown Editor Component</p>
+        <p>Semantic Composer: AI-Powered Markdown Editor Component</p>
       </footer>
     </div>
   );
