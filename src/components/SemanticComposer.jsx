@@ -7,45 +7,6 @@ import './SemanticComposer.css';
 
 /**
  * Semantic Composer - A markdown editor component
- * 
- * Implementation Notes:
- * --------------------
- * 1. Uses a single Milkdown/Crepe instance for both Edit and Read modes
- *    - This ensures consistent styling between modes
- *    - Uses setReadonly() to toggle editability rather than creating separate instances
- * 
- * 2. Raw markdown editing mode uses a separate textarea
- *    - Milkdown/Crepe doesn't provide a built-in raw markdown editing mode
- *    - We sync content between the Crepe instance and the textarea when toggling
- * 
- * 3. Content source of truth:
- *    - Rich mode: Crepe editor instance is the source of truth
- *    - Raw mode: React state is the source of truth
- *    - Mode transitions require explicit syncing between these sources
- * 
- * 4. Persistence philosophy:
- *    - Auto-save enabled by default as a safety net for unsaved changes
- *    - Component uses localStorage only for temporary state
- *    - localStorage is cleaned up when component unmounts
- *    - Parent application should handle permanent storage via callbacks
- *    - onSave/onChange callbacks notify parent when content changes
- * 
- * 5. HTML tag handling:
- *    - The editor sometimes includes <br /> tags in table cells and at document end
- *    - These tags are automatically removed when switching to raw or read mode
- *    - This prevents users from seeing HTML artifacts in the markdown
- *    - Cleanup is targeted specifically to table cells to avoid affecting user content
- * 
- * 6. Initialization:
- *    - Initial content comes from props or parent app
- *    - Simple state model with no complex initialization logic
- *    - Avoid useState initialization functions to prevent double-rendering
- * 
- * 7. Dependencies and Effects:
- *    - CRITICAL: useEffect dependency arrays are intentionally incomplete
- *    - Adding 'content' to dependency arrays causes content loss during mode transitions
- *    - ESLint warnings are suppressed for these arrays to prevent future regressions
- *    - Do not add content-related dependencies without thorough testing
  */
 /**
  * Semantic Composer - A markdown editor component with rich/raw editing modes
