@@ -56,7 +56,7 @@ function MyApp() {
         onChange={handleChange}
         onSave={handleSave}
         theme="light" // or "dark"
-        height="600px"
+        width="100%"
       />
     </div>
   );
@@ -73,7 +73,6 @@ function MyApp() {
 | onChange | function | undefined | Callback when content changes |
 | onSave | function | undefined | Callback when save is triggered |
 | theme | 'light' \| 'dark' | 'light' | Editor theme |
-| height | string \| number | '500px' | Editor height |
 | width | string \| number | '100%' | Editor width |
 | placeholder | string | 'Start writing...' | Placeholder text for empty editor |
 | readOnly | boolean | false | Set editor to read-only mode |

@@ -49,7 +49,7 @@ function App() {
           onChange={handleChange}
           onSave={handleSave}
           theme={theme}
-          height="600px"
+          width="100%"
         />
       </main>
       <footer className="app-footer">

@@ -22,8 +22,6 @@
 
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 body {
@@ -32,6 +30,8 @@ body {
   background-color: var(--app-bg);
   color: var(--app-text);
   transition: background-color 0.3s, color 0.3s;
+  margin: 0;
+  padding: 0;
 }
 
 .app {
@@ -44,11 +44,11 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
   padding: 16px;
   background-color: var(--app-header-bg);
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
 }
 
 .action-buttons {
@@ -74,8 +74,11 @@ body {
 .app-main {
   margin-bottom: 20px;
   border-radius: 8px;
-  overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* Allow the content to determine the size */
+  width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
 .app-footer {
