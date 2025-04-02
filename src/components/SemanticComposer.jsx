@@ -562,84 +562,14 @@ const SemanticComposer = forwardRef((props, ref) => {
     };
   }, [handleSave]);
   
-  // Formatting handlers
-  const insertMarkdownSyntax = (syntax, placeholder = '') => {
-    if (mode !== 'edit') return;
-    
-    if (view === 'rich' && crepeRef.current) {
-      // For rich editor, we need to append text then recreate
-      try {
-        const current = content || '';
-        const newContent = current + '\n' + syntax + placeholder;
-        
-        // Update state
-        setContent(newContent);
-        if (onChange) onChange(newContent);
-        
-        // Recreate editor
-        crepeRef.current.destroy();
-        crepeRef.current = null;
-        
-        if (editorRef.current) {
-          editorRef.current.innerHTML = '';
-        }
-      } catch (error) {
-        console.error('Error inserting markdown:', error);
-        if (onError) onError(new Error(`Error inserting markdown: ${error.message}`));
-      }
-    } else if (view === 'raw') {
-      // For raw editor, just update state
-      const newContent = (content || '') + '\n' + syntax + placeholder;
-      setContent(newContent);
-      if (onChange) onChange(newContent);
-    }
-  };
-  
-  // Specific formatting functions
-  const insertHeading = (level) => {
-    const prefix = '#'.repeat(level) + ' ';
-    insertMarkdownSyntax(prefix, 'Heading');
-  };
-  
-  const insertBold = () => insertMarkdownSyntax('**', 'bold text**');
-  const insertItalic = () => insertMarkdownSyntax('*', 'italic text*');
-  const insertCode = () => insertMarkdownSyntax('`', 'code`');
-  const insertLink = () => insertMarkdownSyntax('[', 'link text](https://example.com)');
-  const insertImage = () => insertMarkdownSyntax('![', 'alt text](https://example.com/image.jpg)');
-  const insertBulletList = () => insertMarkdownSyntax('- ', 'List item');
-  const insertNumberedList = () => insertMarkdownSyntax('1. ', 'List item');
-  const insertTable = () => insertMarkdownSyntax('| Header 1 | Header 2 |\n| -------- | -------- |\n| Cell 1   | Cell 2   |');
-  const insertCodeBlock = () => insertMarkdownSyntax('```\n', 'console.log("Hello World");\n```');
-  
   return (
     <div className="semantic-composer" data-theme={theme} style={{ width }}>
       <div className="composer-toolbar">
-        {/* Left side - Formatting buttons (only in edit mode) */}
-        {mode === 'edit' && (
-          <div className="toolbar-formatting">
-            <button className="format-button" onClick={() => insertHeading(1)} title="Heading 1">H1</button>
-            <button className="format-button" onClick={() => insertHeading(2)} title="Heading 2">H2</button>
-            <button className="format-button" onClick={() => insertHeading(3)} title="Heading 3">H3</button>
-            <span className="toolbar-divider"></span>
-            <button className="format-button" onClick={insertBold} title="Bold">B</button>
-            <button className="format-button" onClick={insertItalic} title="Italic">I</button>
-            <button className="format-button" onClick={insertCode} title="Inline Code">C</button>
-            <span className="toolbar-divider"></span>
-            <button className="format-button" onClick={insertBulletList} title="Bullet List">•</button>
-            <button className="format-button" onClick={insertNumberedList} title="Numbered List">1.</button>
-            <span className="toolbar-divider"></span>
-            <button className="format-button" onClick={insertLink} title="Link">🔗</button>
-            <button className="format-button" onClick={insertImage} title="Image">🖼️</button>
-            <button className="format-button" onClick={insertTable} title="Table">📊</button>
-            <button className="format-button" onClick={insertCodeBlock} title="Code Block">{ }{ }</button>
-          </div>
-        )}
-        
-        {/* Spacer */}
+        {/* Empty space on the left */}
         <div className="toolbar-spacer"></div>
         
-        {/* Right side - Mode toggles & actions */}
-        <div className="toolbar-actions">
+        {/* Mode toggles & actions on the right */}
+        <div className="toolbar-actions" style={{ marginLeft: 'auto' }}>
           <button className="toolbar-button icon-button" onClick={toggleMode} title={mode === 'edit' ? 'Switch to Read mode' : 'Switch to Edit mode'}>
             {mode === 'edit' ? <FiEye /> : <FiEdit />}
           </button>
