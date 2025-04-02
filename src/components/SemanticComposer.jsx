@@ -93,86 +93,89 @@ const SemanticComposer = forwardRef((props, ref) => {
     toggleEditorMode: () => toggleMode()
   }));
   
-  // Initialize Milkdown editor - single instance for both edit and read modes
+  // Initialize Milkdown editor - editor is the source of truth for content
   useEffect(() => {
-    // Only try to initialize if we have DOM element, are in rich mode, and don't have an instance yet
+    // Only initialize in rich mode with DOM element & no existing instance
     if (editorRef.current && view === 'rich' && !crepeRef.current) {
       try {
-        // First check for content in localStorage
-        const localContent = localStorage.getItem('semantic-composer-content');
+        // Very important: Clear editor container first
+        editorRef.current.innerHTML = '';
         
-        // Check content sources in priority order
-        let contentToUse = '';
-        
-        if (localContent && localContent !== '<br />' && localContent !== '<br>') {
-          contentToUse = localContent;
-          if (debug) console.log('Using content from localStorage for initialization');
-        } else if (initialValue) {
-          contentToUse = initialValue;
-          if (debug) console.log('Using initialValue prop for initialization');
-        } else if (content) {
-          contentToUse = content;
-          if (debug) console.log('Using component state for initialization');
-        }
-        
-        // Log what we're initializing with
         if (debug) {
-          console.log('Initializing editor with content:', 
-                     contentToUse ? contentToUse.substring(0, 30) + '...' : 'empty');
+          console.log('Initializing editor with initialValue, length:', 
+                     safeInitialValue ? safeInitialValue.length : 0);
         }
         
-        // Basic initialization pattern, straight from Milkdown docs
+        // Create editor with initial content from props
         const crepe = new Crepe({
           root: editorRef.current,
-          defaultValue: contentToUse
+          defaultValue: safeInitialValue // Editor is source of truth, use prop directly
         });
         
-        // Create editor using promise approach (not async/await)
+        // Create the editor
         crepe.create()
           .then(() => {
+            // Store reference only after creation is complete
             crepeRef.current = crepe;
             
-            // Set initial read-only state
+            // Set read-only state
             crepe.setReadonly(mode === 'read' || readOnly);
             
-            // Use event listeners for changes
+            // EDITOR IS SOURCE OF TRUTH: Only update React state in response to editor changes
             crepe.on((listener) => {
               listener.markdownUpdated((markdown) => {
-                if (typeof markdown === 'string' && markdown !== content) {
+                if (typeof markdown === 'string') {
+                  // Update React state to reflect editor state
                   setContent(markdown);
                   if (onChange) onChange(markdown);
+                  
+                  if (debug) {
+                    console.log('Editor updated content, new length:', markdown.length);
+                  }
                 }
               });
             });
             
-            // Save to state to keep in sync
-            if (contentToUse && contentToUse !== content) {
-              setContent(contentToUse);
-              if (onChange) onChange(contentToUse);
+            // After initialization, get current content from editor
+            // This ensures our React state matches editor state
+            try {
+              const currentMarkdown = crepe.getMarkdown();
+              if (typeof currentMarkdown === 'string') {
+                setContent(currentMarkdown);
+                if (onChange) onChange(currentMarkdown);
+              }
+            } catch (error) {
+              console.error('Could not get initial markdown from editor:', error);
+            }
+            
+            if (debug) {
+              console.log('Editor initialized successfully');
             }
           })
           .catch(error => {
             console.error('Editor creation failed:', error);
-            if (onError) onError(new Error(`Editor creation error: ${error.message}`));
+            if (onError) onError(new Error(`Editor creation failed: ${error.message}`));
+            crepeRef.current = null;
           });
       } catch (error) {
-        console.error('Editor initialization error:', error);
-        if (onError) onError(new Error(`Editor initialization error: ${error.message}`));
+        console.error('Editor initialization failed:', error);
+        if (onError) onError(new Error(`Editor initialization failed: ${error.message}`));
       }
     }
     
-    // Cleanup function
     return () => {
+      // Cleanup on unmount or view change
       if (crepeRef.current) {
         try {
           crepeRef.current.destroy();
         } catch (error) {
           console.error('Editor cleanup error:', error);
+        } finally {
+          crepeRef.current = null;
         }
-        crepeRef.current = null;
       }
     };
-  }, [view, readOnly, mode, initialValue, onChange, content, debug, onError]);
+  }, [view, safeInitialValue, mode, readOnly, debug, onChange, onError]);
   
   // Update read-only state when mode changes
   useEffect(() => {
@@ -193,28 +196,12 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // Toggle between edit and read modes
   const toggleMode = () => {
-    // If in rich mode, sync content before toggling
-    if (view === 'rich' && crepeRef.current) {
-      try {
-        const markdown = crepeRef.current.getMarkdown();
-        if (typeof markdown === 'string') {
-          setContent(markdown);
-          if (onChange) onChange(markdown);
-        }
-      } catch (error) {
-        const toggleError = new Error(`Failed to get markdown when toggling mode: ${error.message}`);
-        toggleError.originalError = error;
-        if (onError) onError(toggleError);
-      }
-    }
-    
-    // Toggle mode
     const newMode = mode === 'edit' ? 'read' : 'edit';
     setMode(newMode);
     
     // For rich mode, set editor readonly state
     if (view === 'rich' && crepeRef.current) {
-      crepeRef.current.setReadonly(newMode === 'read');
+      crepeRef.current.setReadonly(newMode === 'read' || readOnly);
     }
     
     if (onModeChange) onModeChange(newMode);
@@ -224,134 +211,67 @@ const SemanticComposer = forwardRef((props, ref) => {
   const toggleView = () => {
     if (mode !== 'edit') return;
     
-    // If switching from rich to raw, get the latest markdown content
+    // Calculate new view
+    const newView = view === 'rich' ? 'raw' : 'rich';
+    
+    // From rich to raw: Get content from the editor (source of truth)
     if (view === 'rich' && crepeRef.current) {
       try {
-        // Save current content to localStorage before switching
-        // This ensures we have a good copy if getMarkdown() returns <br /> tags
-        localStorage.setItem('semantic-composer-temp', content);
+        // Get content from the editor before destroying it
+        const editorContent = crepeRef.current.getMarkdown();
         
-        // Log state before getting markdown if in debug mode
-        if (debug) {
-          console.group('Editor state before getMarkdown()');
-          console.log('Current React state content:', content);
-          console.log('Current localStorage content:', localStorage.getItem('semantic-composer-temp'));
-          console.groupEnd();
-        }
-        
-        const markdown = crepeRef.current.getMarkdown();
-        
-        // Enhanced diagnostic logging
-        if (debug) {
-          console.group('getMarkdown() output');
-          console.log('Raw output:', markdown);
-          console.log('Output type:', typeof markdown);
-          console.log('Length:', markdown ? markdown.length : 0);
-          console.log('Contains <br>:', markdown && (markdown.includes('<br>') || markdown.includes('<br />')));
-          console.log('Character codes:', [...(markdown || '')].map(c => c.charCodeAt(0)));
-          console.groupEnd();
-        }
-        
-        // Check if we got valid markdown, or just a <br /> tag
-        if (markdown && markdown !== '<br />' && markdown !== '<br>') {
-          setContent(markdown);
-          if (onChange) onChange(markdown);
-          // Update the localStorage with good content
-          localStorage.setItem('semantic-composer-temp', markdown);
+        // Save this content for the raw editor to use
+        if (typeof editorContent === 'string' && editorContent !== '<br />') {
+          // Save to React state for raw editor
+          setContent(editorContent);
+          // Also save to localStorage as backup
+          localStorage.setItem('semantic-composer-raw-content', editorContent);
           
           if (debug) {
-            console.log('Using markdown from getMarkdown()');
+            console.log('Switching to raw mode with editor content:', 
+                      editorContent.substring(0, 30) + '...');
           }
-        } else if (markdown === '<br />' || markdown === '<br>') {
-          // Convert <br> tags to empty string explicitly
-          const emptyContent = '';
-          setContent(emptyContent);
-          if (onChange) onChange(emptyContent);
-          localStorage.setItem('semantic-composer-temp', emptyContent);
-          
-          if (debug) {
-            console.warn('getMarkdown() returned <br /> tag, converting to empty string');
-          }
-        } else {
-          // For any other invalid/empty content, use our React state
-          // which should already be in sync with the editor
-          if (debug) {
-            console.warn('getMarkdown() returned invalid content, using React state instead');
-          }
+        }
+        
+        // Clean up editor
+        crepeRef.current.destroy();
+        crepeRef.current = null;
+        
+        // Clear container
+        if (editorRef.current) {
+          editorRef.current.innerHTML = '';
         }
       } catch (error) {
-        const toggleError = new Error(`Failed to get markdown when toggling to raw mode: ${error.message}`);
-        toggleError.originalError = error;
-        if (onError) onError(toggleError);
+        console.error('Error switching to raw view:', error);
+        if (onError) onError(new Error(`Error switching to raw view: ${error.message}`));
+      }
+    }
+    // From raw to rich: content in React state will be used to initialize editor
+    else if (view === 'raw') {
+      // When switching back to rich, content from React state will
+      // be used to initialize the editor in the useEffect
+      if (debug) {
+        console.log('Switching to rich mode with content from state:', 
+                  content ? content.substring(0, 30) + '...' : 'empty');
       }
     }
     
-    // Toggle view mode
-    const newView = view === 'rich' ? 'raw' : 'rich';
+    // Set new view - this will trigger editor initialization via useEffect
     setView(newView);
-    
-    // When toggling back to rich mode, we need to restore content and re-initialize
-    if (newView === 'rich') {
-      try {
-        // Prioritize content sources in this order:
-        // 1. Current React state (if valid)
-        // 2. localStorage temp content (if valid)
-        // 3. initialValue prop (fallback)
-        
-        let contentToUse = content;
-        
-        // Only check localStorage if current content is empty or invalid
-        if (!contentToUse || contentToUse === '<br />' || contentToUse === '<br>') {
-          const savedContent = localStorage.getItem('semantic-composer-temp');
-          
-          if (savedContent && savedContent !== '<br />' && savedContent !== '<br>') {
-            contentToUse = savedContent;
-            
-            if (debug) {
-              console.log('Using saved content from localStorage');
-            }
-          } else if (initialValue) {
-            contentToUse = initialValue;
-            
-            if (debug) {
-              console.log('Falling back to initialValue prop');
-            }
-          }
-        }
-        
-        // Always update state with best content
-        setContent(contentToUse);
-        if (onChange) onChange(contentToUse);
-        
-        if (debug) {
-          console.group('Content for Rich Mode');
-          console.log('Content source:', content === contentToUse ? 'React state' : 
-                                      contentToUse === initialValue ? 'initialValue prop' : 'localStorage');
-          console.log('Content length:', contentToUse ? contentToUse.length : 0);
-          console.log('Preview:', contentToUse ? contentToUse.substring(0, 30) + '...' : 'empty');
-          console.groupEnd();
-        }
-        
-        // Always destroy and recreate for clean initialization
-        if (crepeRef.current) {
-          crepeRef.current.destroy();
-          crepeRef.current = null;
-        }
-      } catch (error) {
-        const richModeError = new Error(`Failed to toggle to rich mode: ${error.message}`);
-        richModeError.originalError = error;
-        if (onError) onError(richModeError);
-      }
-    }
     
     if (onViewChange) onViewChange(newView);
   };
   
   // Handle raw editor changes
+  // In raw mode, the textarea becomes the temporary source of truth
   const handleRawChange = (e) => {
     const newContent = e.target.value;
+    // Update React state with raw editor content
     setContent(newContent);
     if (onChange) onChange(newContent);
+    
+    // Also save to localStorage for persistence between mode switches
+    localStorage.setItem('semantic-composer-raw-content', newContent);
   };
   
   // Save handler - memoized to avoid dependency loops
@@ -359,8 +279,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     // Ensure content is a string before saving
     const contentToSave = typeof content === 'string' ? content : '';
     
-    // Just use the current content state that's being kept in sync
-    // with the editor through onChange
+    // Call onSave if provided
     if (onSave) onSave(contentToSave);
     
     // Store in localStorage
@@ -375,19 +294,20 @@ const SemanticComposer = forwardRef((props, ref) => {
       setContent(savedContent);
       if (onChange) onChange(savedContent);
       
-      // For rich mode, we need to recreate the editor with the new content
+      // For rich mode, recreate the editor with new content
       if (view === 'rich' && crepeRef.current) {
         try {
-          // Destroy the current editor instance
+          // Destroy current editor
           crepeRef.current.destroy();
           crepeRef.current = null;
           
-          // The editor will be reinitialized with the new content
-          // when React detects that crepeRef.current is null in the useEffect
+          // Clear container
+          if (editorRef.current) {
+            editorRef.current.innerHTML = '';
+          }
         } catch (error) {
-          const loadError = new Error(`Failed to load content from localStorage: ${error.message}`);
-          loadError.originalError = error;
-          if (onError) onError(loadError);
+          console.error('Error loading content:', error);
+          if (onError) onError(new Error(`Error loading content: ${error.message}`));
         }
       }
     }
@@ -400,39 +320,36 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // React to external initialValue changes
   useEffect(() => {
-    // Ensure we have a string
-    const safeValue = typeof initialValue === 'string' ? initialValue : '';
-    setContent(safeValue);
+    // Update content state
+    setContent(safeInitialValue);
     
-    // For rich mode, we need to recreate the editor with the new content
+    // For rich mode, recreate editor with new content
     if (view === 'rich' && crepeRef.current) {
       try {
-        // Destroy the current editor instance
+        // Destroy current editor
         crepeRef.current.destroy();
         crepeRef.current = null;
         
-        // The editor will be reinitialized with the new content
-        // when React detects that crepeRef.current is null in the useEffect
+        // Clear container
+        if (editorRef.current) {
+          editorRef.current.innerHTML = '';
+        }
       } catch (error) {
-        const valueChangeError = new Error(`Failed to update editor with new initialValue: ${error.message}`);
-        valueChangeError.originalError = error;
-        if (onError) onError(valueChangeError);
+        console.error('Error updating content:', error);
+        if (onError) onError(new Error(`Error updating content: ${error.message}`));
       }
     }
-  }, [initialValue, view]);
+  }, [initialValue]);
   
   // Auto-save to localStorage on an interval
   useEffect(() => {
-    // Only set up auto-saving when enabled
     if (autoSaveInterval <= 0) return;
     
     const interval = setInterval(() => {
-      // Save only if content has changed (and it's a valid string)
       if (typeof content === 'string') {
         localStorage.setItem('semantic-composer-content', content);
-        
         if (debug) {
-          console.log('Auto-saved content to localStorage');
+          console.log('Auto-saved content');
         }
       }
     }, autoSaveInterval);
@@ -454,33 +371,36 @@ const SemanticComposer = forwardRef((props, ref) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [content, handleSave]);
+  }, [handleSave]);
   
   // Formatting handlers
   const insertMarkdownSyntax = (syntax, placeholder = '') => {
     if (mode !== 'edit') return;
     
     if (view === 'rich' && crepeRef.current) {
-      // For rich editor, we can only try to insert markdown and hope it works
+      // For rich editor, we need to append text then recreate
       try {
-        const current = crepeRef.current.getMarkdown();
+        const current = content || '';
         const newContent = current + '\n' + syntax + placeholder;
         
-        // Since there's no setMarkdown API, we need to destroy and recreate
+        // Update state
+        setContent(newContent);
+        if (onChange) onChange(newContent);
+        
+        // Recreate editor
         crepeRef.current.destroy();
         crepeRef.current = null;
         
-        // Update the content state so it's used when recreating
-        setContent(newContent);
-        if (onChange) onChange(newContent);
+        if (editorRef.current) {
+          editorRef.current.innerHTML = '';
+        }
       } catch (error) {
-        const insertError = new Error(`Failed to insert markdown syntax: ${error.message}`);
-        insertError.originalError = error;
-        if (onError) onError(insertError);
+        console.error('Error inserting markdown:', error);
+        if (onError) onError(new Error(`Error inserting markdown: ${error.message}`));
       }
     } else if (view === 'raw') {
-      // For raw editor, just update the state
-      const newContent = content + '\n' + syntax + placeholder;
+      // For raw editor, just update state
+      const newContent = (content || '') + '\n' + syntax + placeholder;
       setContent(newContent);
       if (onChange) onChange(newContent);
     }
