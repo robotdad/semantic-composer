@@ -17,19 +17,36 @@ import './SemanticComposer.css';
  *    - Milkdown/Crepe doesn't provide a built-in raw markdown editing mode
  *    - We sync content between the Crepe instance and the textarea when toggling
  * 
- * 3. Styling consistency is maintained by:
- *    - Using the same renderer for edit and read modes
- *    - Targeting Milkdown's internal elements with specific CSS selectors
- *    - Setting !important on crucial typography styles
+ * 3. Content source of truth:
+ *    - Rich mode: Crepe editor instance is the source of truth
+ *    - Raw mode: React state is the source of truth
+ *    - Mode transitions require explicit syncing between these sources
  * 
- * 4. Content source of truth:
- *    - Editor instance (Crepe) is the ONLY source of truth for content
- *    - React state only reflects the editor's content, never the other way around
- *    - Editor content is accessed directly via crepe.getMarkdown() for operations
- *    - Errors accessing editor content are surfaced directly rather than using fallbacks
+ * 4. Critical Crepe behavior:
+ *    - When switching from rich edit → read mode, React state must be updated first
+ *    - This is because setReadonly() triggers ProseMirror re-render that may use state
+ *    - Missing this step causes content to be lost when toggling to read mode
+ *    - We capture editor content into React state before toggling readonly
+ * 
+ * 5. View transitions:
+ *    - Rich → Raw: Get content from editor, store in React state for textarea
+ *    - Raw → Rich: Use React state to initialize new editor instance
+ *    - Both transitions require explicit content transfer
+ * 
+ * 6. Persistence model:
+ *    - Auto-save enabled by default as a safety net (5 second interval)
+ *    - Component uses localStorage only for temporary session state
+ *    - localStorage is cleaned up when component unmounts
+ *    - Parent application should handle permanent storage via callbacks
+ *    - onSave/onChange callbacks notify parent when content changes
+ * 
+ * 7. Initialization:
+ *    - Initial content comes from props or parent app
+ *    - Simple state model with no complex initialization logic
+ *    - Avoid useState initialization functions to prevent double-rendering
  */
 /**
- * Semantic Composer - A markdown editor component
+ * Semantic Composer - A markdown editor component with rich/raw editing modes
  * 
  * @param {Object} props - Component props
  * @param {string} [props.initialValue=''] - Initial markdown content
@@ -74,7 +91,7 @@ const SemanticComposer = forwardRef((props, ref) => {
   // Ensure initialValue is a string
   const safeInitialValue = typeof initialValue === 'string' ? initialValue : '';
   
-  // Storage key for content
+  // Storage key for content (used for autosave and temporary persistence)
   const contentKey = `${storageKey}:content`;
   
   // Simple state setup - no complex initialization
@@ -142,15 +159,10 @@ const SemanticComposer = forwardRef((props, ref) => {
       // Update content state with new content
       setContent(safeContent);
       
-      // Also update localStorage
-      try {
-        localStorage.setItem(contentKey, safeContent);
-        if (debug) {
-          console.log(`Reset: stored content to ${contentKey}`);
-        }
-      } catch (error) {
-        console.error('Error storing content during reset:', error);
-      }
+      // We no longer update localStorage here since:
+      // 1. The parent app should handle persistence
+      // 2. The auto-save mechanism will save if enabled
+      // 3. The reset function is often called after clearing localStorage
       
       // If in raw mode, this will be enough
       // If in rich mode, useEffect will re-initialize the editor
@@ -225,7 +237,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     }
     
     return () => {
-      // Simple cleanup on unmount or view change
+      // Clean up editor instance
       if (crepeRef.current) {
         try {
           crepeRef.current.destroy();
@@ -233,6 +245,17 @@ const SemanticComposer = forwardRef((props, ref) => {
           console.error('Editor cleanup error:', error);
         } finally {
           crepeRef.current = null;
+        }
+      }
+      
+      // If this is a component unmount (not just view change), clean up localStorage
+      if (view === 'rich') {
+        try {
+          // Remove temporary localStorage when component is destroyed
+          localStorage.removeItem(contentKey);
+          if (debug) console.log(`Cleaned up localStorage key: ${contentKey}`);
+        } catch (error) {
+          console.error('Error cleaning localStorage on unmount:', error);
         }
       }
     };
@@ -488,31 +511,39 @@ const SemanticComposer = forwardRef((props, ref) => {
     }
   }, [initialValue]);
   
-  // Auto-save to localStorage on an interval
+  // Auto-save functionality (active by default)
   useEffect(() => {
-    if (autoSaveInterval <= 0) return;
+    // Skip only if explicitly disabled (interval set to 0)
+    if (autoSaveInterval === 0) return;
     
     const interval = setInterval(() => {
-      // Get content directly from the editor if possible (source of truth)
-      if (view === 'rich' && crepeRef.current) {
-        try {
-          const currentContent = crepeRef.current.getMarkdown();
-          localStorage.setItem(contentKey, currentContent);
-          if (debug) {
-            console.log(`Auto-saved content to ${contentKey}`);
-          }
-        } catch (error) {
-          console.error('Error auto-saving content:', error);
+      try {
+        // Get current content from the appropriate source of truth
+        let currentContent;
+        
+        if (view === 'rich' && crepeRef.current) {
+          // From rich editor
+          currentContent = crepeRef.current.getMarkdown();
+        } else if (view === 'raw') {
+          // From raw editor state
+          currentContent = content;
+        } else {
+          return; // No valid source
         }
-      } 
-      // Otherwise use React state for raw mode
-      else if (view === 'raw') {
-        localStorage.setItem(contentKey, content);
+        
+        // Save to localStorage and notify parent via onSave if provided
+        if (typeof currentContent === 'string') {
+          localStorage.setItem(contentKey, currentContent);
+          if (onSave) onSave(currentContent);
+          if (debug) console.log(`Auto-saved content to ${contentKey}`);
+        }
+      } catch (error) {
+        console.error('Error during auto-save:', error);
       }
     }, autoSaveInterval);
 
     return () => clearInterval(interval);
-  }, [autoSaveInterval, debug, contentKey, view, content]);
+  }, [autoSaveInterval, debug, contentKey, view, content, onSave]);
   
   // Keyboard shortcuts
   useEffect(() => {
