@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Crepe } from '@milkdown/crepe';
-import { FiEdit, FiEye, FiType, FiCode, FiSave } from 'react-icons/fi';
+import { FiEdit, FiEye, FiType, FiCode, FiSave, FiDownload } from 'react-icons/fi';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
 import './SemanticComposer.css';
@@ -582,6 +582,48 @@ const SemanticComposer = forwardRef((props, ref) => {
           
           <button className="toolbar-button icon-button" onClick={handleSave} title="Save content">
             <FiSave />
+          </button>
+          
+          <button 
+            className="toolbar-button icon-button" 
+            onClick={() => {
+              try {
+                // Get current content from appropriate source
+                let currentContent = '';
+                if (view === 'rich' && crepeRef.current) {
+                  currentContent = crepeRef.current.getMarkdown();
+                  // Clean up <br> tags when exporting from rich mode
+                  currentContent = cleanupBrTags(currentContent);
+                } else if (view === 'raw') {
+                  // Raw mode already has clean content
+                  currentContent = content;
+                } else {
+                  // Read mode - use content from state but ensure it's clean
+                  currentContent = cleanupBrTags(content);
+                }
+                
+                // Create blob and download link
+                const blob = new Blob([currentContent], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'document.md';
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (error) {
+                console.error('Error exporting markdown:', error);
+                if (onError) onError(new Error(`Error exporting markdown: ${error.message}`));
+              }
+            }} 
+            title="Export markdown"
+          >
+            <FiDownload />
           </button>
           
           {/* Word count display */}
