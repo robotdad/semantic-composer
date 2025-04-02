@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Crepe } from '@milkdown/crepe';
+import { FiEdit, FiEye, FiType, FiCode, FiSave } from 'react-icons/fi';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
 import './SemanticComposer.css';
@@ -639,18 +640,18 @@ const SemanticComposer = forwardRef((props, ref) => {
         
         {/* Right side - Mode toggles & actions */}
         <div className="toolbar-actions">
-          <button className="toolbar-button" onClick={toggleMode}>
-            {mode === 'edit' ? 'Read' : 'Edit'}
+          <button className="toolbar-button icon-button" onClick={toggleMode} title={mode === 'edit' ? 'Switch to Read mode' : 'Switch to Edit mode'}>
+            {mode === 'edit' ? <FiEye /> : <FiEdit />}
           </button>
           
           {mode === 'edit' && (
-            <button className="toolbar-button" onClick={toggleView}>
-              {view === 'rich' ? 'Raw' : 'Rich'}
+            <button className="toolbar-button icon-button" onClick={toggleView} title={view === 'rich' ? 'Switch to Raw markdown' : 'Switch to Rich editor'}>
+              {view === 'rich' ? <FiCode /> : <FiType />}
             </button>
           )}
           
-          <button className="toolbar-button" onClick={handleSave} title="Save to localStorage">
-            Save
+          <button className="toolbar-button icon-button" onClick={handleSave} title="Save content">
+            <FiSave />
           </button>
           
           {/* Word count display */}
