@@ -480,45 +480,7 @@ const SemanticComposer = forwardRef((props, ref) => {
       if (onError) onError(new Error(`Error saving content: ${error.message}`));
     }
   }, [content, onSave, contentKey, debug, onError]);
-  
-  // Load from localStorage if available
-  const handleLoad = () => {
-    try {
-      const savedContent = localStorage.getItem(contentKey);
-      if (savedContent) {
-        // Update state
-        setContent(savedContent);
-        if (onChange) onChange(savedContent);
-        
-        // For rich mode, recreate the editor with new content
-        if (view === 'rich' && crepeRef.current) {
-          try {
-            // Destroy current editor
-            crepeRef.current.destroy();
-            crepeRef.current = null;
-            
-            // Clear container
-            if (editorRef.current) {
-              editorRef.current.innerHTML = '';
-            }
-            
-            if (debug) {
-              console.log(`Loaded content from ${contentKey}`, savedContent.substring(0, 30) + '...');
-            }
-          } catch (error) {
-            console.error('Error recreating editor after load:', error);
-            if (onError) onError(new Error(`Error recreating editor after load: ${error.message}`));
-          }
-        }
-      } else if (debug) {
-        console.log(`No saved content found at key ${contentKey}`);
-      }
-    } catch (error) {
-      console.error('Error loading content:', error);
-      if (onError) onError(new Error(`Error loading content: ${error.message}`));
-    }
-  };
-  
+    
   // Apply theme
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -686,10 +648,6 @@ const SemanticComposer = forwardRef((props, ref) => {
               {view === 'rich' ? 'Raw' : 'Rich'}
             </button>
           )}
-          
-          <button className="toolbar-button" onClick={handleLoad} title="Load from localStorage">
-            Load
-          </button>
           
           <button className="toolbar-button" onClick={handleSave} title="Save to localStorage">
             Save
