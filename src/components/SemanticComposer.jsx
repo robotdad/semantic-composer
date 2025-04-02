@@ -21,6 +21,12 @@ import './SemanticComposer.css';
  *    - Using the same renderer for edit and read modes
  *    - Targeting Milkdown's internal elements with specific CSS selectors
  *    - Setting !important on crucial typography styles
+ * 
+ * 4. Content source of truth:
+ *    - Editor instance (Crepe) is the ONLY source of truth for content
+ *    - React state only reflects the editor's content, never the other way around
+ *    - Editor content is accessed directly via crepe.getMarkdown() for operations
+ *    - Errors accessing editor content are surfaced directly rather than using fallbacks
  */
 /**
  * Semantic Composer - A markdown editor component
@@ -42,6 +48,7 @@ import './SemanticComposer.css';
  * @param {boolean} [props.spellCheck=true] - Enable spell check
  * @param {number} [props.autoSaveInterval=5000] - Auto-save interval in ms
  * @param {boolean} [props.debug=false] - Enable debug logging
+ * @param {string} [props.storageKey='semantic-composer-default'] - Storage key for localStorage persistence
  */
 const SemanticComposer = forwardRef((props, ref) => {
   const {
@@ -61,14 +68,21 @@ const SemanticComposer = forwardRef((props, ref) => {
     spellCheck = true,
     autoSaveInterval = 5000,
     debug = false,
+    storageKey = 'semantic-composer-default',
   } = props;
   
   // Ensure initialValue is a string
   const safeInitialValue = typeof initialValue === 'string' ? initialValue : '';
   
+  // Helper functions for storage management
+  const getStorageKey = (suffix) => `${storageKey}:${suffix}`;
+  const contentKey = getStorageKey('content');
+  const rawTempKey = getStorageKey('raw-temp');
+  
+  // Simple state setup - no complex initialization
   const [mode, setMode] = useState(defaultMode);
   const [view, setView] = useState(defaultView);
-  const [content, setContent] = useState(safeInitialValue);
+  const [content, setContent] = useState(safeInitialValue || '');
   const editorRef = useRef(null);
   const crepeRef = useRef(null);
   
@@ -83,14 +97,69 @@ const SemanticComposer = forwardRef((props, ref) => {
     // Get crepe instance
     getCrepeInstance: () => crepeRef.current,
     
-    // Get current content
-    getCurrentContent: () => content,
+    // Get current content directly from editor instance
+    getCurrentContent: () => {
+      // Always get content directly from editor if possible
+      if (crepeRef.current && view === 'rich') {
+        try {
+          return crepeRef.current.getMarkdown();
+        } catch (error) {
+          console.error('Error getting content from editor:', error);
+          throw new Error(`Failed to get content from editor: ${error.message}`);
+        }
+      } else if (view === 'raw') {
+        // In raw mode, the textarea state is accurate
+        return content;
+      }
+      throw new Error('No valid editor instance available');
+    },
     
     // Toggle view
     toggleEditorView: () => toggleView(),
     
     // Toggle mode
-    toggleEditorMode: () => toggleMode()
+    toggleEditorMode: () => toggleMode(),
+    
+    // Reset editor - properly resets the component state without window.reload
+    reset: (newContent) => {
+      // If editor is in rich mode, clean up existing instance
+      if (view === 'rich' && crepeRef.current) {
+        try {
+          // Destroy current editor instance
+          crepeRef.current.destroy();
+          crepeRef.current = null;
+          
+          // Clear container
+          if (editorRef.current) {
+            editorRef.current.innerHTML = '';
+          }
+        } catch (error) {
+          console.error('Editor reset error:', error);
+          if (onError) onError(new Error(`Editor reset error: ${error.message}`));
+        }
+      }
+      
+      const safeContent = typeof newContent === 'string' ? newContent : '';
+      
+      // Update content state with new content
+      setContent(safeContent);
+      
+      // Also update localStorage
+      try {
+        localStorage.setItem(contentKey, safeContent);
+        if (debug) {
+          console.log(`Reset: stored content to ${contentKey}`);
+        }
+      } catch (error) {
+        console.error('Error storing content during reset:', error);
+      }
+      
+      // If in raw mode, this will be enough
+      // If in rich mode, useEffect will re-initialize the editor
+    },
+    
+    // Get the current storage key being used
+    getStorageKey: () => storageKey
   }));
   
   // Initialize Milkdown editor - editor is the source of truth for content
@@ -102,14 +171,17 @@ const SemanticComposer = forwardRef((props, ref) => {
         editorRef.current.innerHTML = '';
         
         if (debug) {
-          console.log('Initializing editor with initialValue, length:', 
-                     safeInitialValue ? safeInitialValue.length : 0);
+          console.log('Initializing editor with content:', 
+                     safeInitialValue ? safeInitialValue.substring(0, 30) + '...' : 'empty');
         }
         
-        // Create editor with initial content from props
+        // IMPORTANT: log what we're initializing with
+        console.log('INIT CONTENT:', safeInitialValue?.substring(0, 30));
+        
+        // Create editor with current content from React state
         const crepe = new Crepe({
           root: editorRef.current,
-          defaultValue: safeInitialValue // Editor is source of truth, use prop directly
+          defaultValue: content || ''
         });
         
         // Create the editor
@@ -121,32 +193,16 @@ const SemanticComposer = forwardRef((props, ref) => {
             // Set read-only state
             crepe.setReadonly(mode === 'read' || readOnly);
             
-            // EDITOR IS SOURCE OF TRUTH: Only update React state in response to editor changes
+            // Simple event listener for content changes
             crepe.on((listener) => {
               listener.markdownUpdated((markdown) => {
                 if (typeof markdown === 'string') {
-                  // Update React state to reflect editor state
+                  // Update React state and notify parent
                   setContent(markdown);
                   if (onChange) onChange(markdown);
-                  
-                  if (debug) {
-                    console.log('Editor updated content, new length:', markdown.length);
-                  }
                 }
               });
             });
-            
-            // After initialization, get current content from editor
-            // This ensures our React state matches editor state
-            try {
-              const currentMarkdown = crepe.getMarkdown();
-              if (typeof currentMarkdown === 'string') {
-                setContent(currentMarkdown);
-                if (onChange) onChange(currentMarkdown);
-              }
-            } catch (error) {
-              console.error('Could not get initial markdown from editor:', error);
-            }
             
             if (debug) {
               console.log('Editor initialized successfully');
@@ -164,7 +220,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     }
     
     return () => {
-      // Cleanup on unmount or view change
+      // Simple cleanup on unmount or view change
       if (crepeRef.current) {
         try {
           crepeRef.current.destroy();
@@ -232,11 +288,35 @@ const SemanticComposer = forwardRef((props, ref) => {
     }
     // Normal case - just toggle mode
     else {
-      setMode(newMode);
-      
-      // For rich mode, set editor readonly state
-      if (view === 'rich' && crepeRef.current) {
-        crepeRef.current.setReadonly(newMode === 'read' || readOnly);
+      // IMPORTANT: When going from rich edit → read, make sure we capture the content first
+      if (view === 'rich' && mode === 'edit' && newMode === 'read' && crepeRef.current) {
+        try {
+          // Get content from editor before setting readonly
+          const currentContent = crepeRef.current.getMarkdown();
+          
+          // First update content state to ensure we have latest changes
+          if (typeof currentContent === 'string') {
+            setContent(currentContent);
+          }
+          
+          // Now set mode and readonly
+          setMode(newMode);
+          crepeRef.current.setReadonly(true);
+        } catch (error) {
+          console.error('Error capturing content before read mode:', error);
+          // Still set the mode even if there's an error
+          setMode(newMode);
+          if (crepeRef.current) crepeRef.current.setReadonly(true);
+        }
+      } 
+      // All other transitions
+      else {
+        setMode(newMode);
+        
+        // For rich mode, set editor readonly state
+        if (view === 'rich' && crepeRef.current) {
+          crepeRef.current.setReadonly(newMode === 'read' || readOnly);
+        }
       }
     }
     
@@ -261,7 +341,16 @@ const SemanticComposer = forwardRef((props, ref) => {
           // Save to React state for raw editor
           setContent(editorContent);
           // Also save to localStorage as backup
-          localStorage.setItem('semantic-composer-raw-content', editorContent);
+          try {
+            localStorage.setItem(rawTempKey, editorContent);
+            localStorage.setItem(contentKey, editorContent);
+            
+            if (debug) {
+              console.log(`Saved content to ${rawTempKey} and ${contentKey} for raw mode transition`);
+            }
+          } catch (error) {
+            console.error('Error saving content during view toggle:', error);
+          }
           
           if (debug) {
             console.log('Switching to raw mode with editor content:', 
@@ -307,7 +396,16 @@ const SemanticComposer = forwardRef((props, ref) => {
     if (onChange) onChange(newContent);
     
     // Also save to localStorage for persistence between mode switches
-    localStorage.setItem('semantic-composer-raw-content', newContent);
+    try {
+      localStorage.setItem(rawTempKey, newContent);
+      localStorage.setItem(contentKey, newContent);
+      
+      if (debug) {
+        console.log(`Raw editor change: saved to ${rawTempKey} and ${contentKey}`);
+      }
+    } catch (error) {
+      console.error('Error saving raw editor content:', error);
+    }
   };
   
   // Save handler - memoized to avoid dependency loops
@@ -319,33 +417,53 @@ const SemanticComposer = forwardRef((props, ref) => {
     if (onSave) onSave(contentToSave);
     
     // Store in localStorage
-    localStorage.setItem('semantic-composer-content', contentToSave);
-  }, [content, onSave]);
+    try {
+      localStorage.setItem(contentKey, contentToSave);
+      
+      if (debug) {
+        console.log(`Saved content to ${contentKey}`, contentToSave.substring(0, 30) + '...');
+      }
+    } catch (error) {
+      console.error('Error saving content:', error);
+      if (onError) onError(new Error(`Error saving content: ${error.message}`));
+    }
+  }, [content, onSave, contentKey, debug, onError]);
   
   // Load from localStorage if available
   const handleLoad = () => {
-    const savedContent = localStorage.getItem('semantic-composer-content');
-    if (savedContent) {
-      // Update state
-      setContent(savedContent);
-      if (onChange) onChange(savedContent);
-      
-      // For rich mode, recreate the editor with new content
-      if (view === 'rich' && crepeRef.current) {
-        try {
-          // Destroy current editor
-          crepeRef.current.destroy();
-          crepeRef.current = null;
-          
-          // Clear container
-          if (editorRef.current) {
-            editorRef.current.innerHTML = '';
+    try {
+      const savedContent = localStorage.getItem(contentKey);
+      if (savedContent) {
+        // Update state
+        setContent(savedContent);
+        if (onChange) onChange(savedContent);
+        
+        // For rich mode, recreate the editor with new content
+        if (view === 'rich' && crepeRef.current) {
+          try {
+            // Destroy current editor
+            crepeRef.current.destroy();
+            crepeRef.current = null;
+            
+            // Clear container
+            if (editorRef.current) {
+              editorRef.current.innerHTML = '';
+            }
+            
+            if (debug) {
+              console.log(`Loaded content from ${contentKey}`, savedContent.substring(0, 30) + '...');
+            }
+          } catch (error) {
+            console.error('Error recreating editor after load:', error);
+            if (onError) onError(new Error(`Error recreating editor after load: ${error.message}`));
           }
-        } catch (error) {
-          console.error('Error loading content:', error);
-          if (onError) onError(new Error(`Error loading content: ${error.message}`));
         }
+      } else if (debug) {
+        console.log(`No saved content found at key ${contentKey}`);
       }
+    } catch (error) {
+      console.error('Error loading content:', error);
+      if (onError) onError(new Error(`Error loading content: ${error.message}`));
     }
   };
   
@@ -382,16 +500,26 @@ const SemanticComposer = forwardRef((props, ref) => {
     if (autoSaveInterval <= 0) return;
     
     const interval = setInterval(() => {
-      if (typeof content === 'string') {
-        localStorage.setItem('semantic-composer-content', content);
-        if (debug) {
-          console.log('Auto-saved content');
+      // Get content directly from the editor if possible (source of truth)
+      if (view === 'rich' && crepeRef.current) {
+        try {
+          const currentContent = crepeRef.current.getMarkdown();
+          localStorage.setItem(contentKey, currentContent);
+          if (debug) {
+            console.log(`Auto-saved content to ${contentKey}`);
+          }
+        } catch (error) {
+          console.error('Error auto-saving content:', error);
         }
+      } 
+      // Otherwise use React state for raw mode
+      else if (view === 'raw') {
+        localStorage.setItem(contentKey, content);
       }
     }, autoSaveInterval);
 
     return () => clearInterval(interval);
-  }, [content, autoSaveInterval, debug]);
+  }, [autoSaveInterval, debug, contentKey, view, content]);
   
   // Keyboard shortcuts
   useEffect(() => {
