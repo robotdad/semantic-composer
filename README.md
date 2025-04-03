@@ -34,27 +34,45 @@ npm install
 npm start
 ```
 
-This will start a development server at http://localhost:3000 where you can see the Semantic Composer component in action.
+### TypeScript Support
+
+This project is built with TypeScript, providing:
+- Type definitions for component props, refs, and state
+- Improved editor integration with autocompletion
+- Better error detection at compile time
+- Enhanced developer experience
+
+TypeScript-specific scripts:
+```bash
+# Type checking
+npm run typecheck
+
+# Linting TypeScript files
+npm run lint
+```
+
+The development server will start at http://localhost:3000 where you can see the Semantic Composer component in action.
 
 ## Usage
 
-```jsx
+```tsx
 import React, { useRef } from 'react';
 import SemanticComposer from './components/SemanticComposer';
+import type { SemanticComposerRef } from './types';
 
 function MyApp() {
-  const editorRef = useRef(null);
+  const editorRef = useRef<SemanticComposerRef>(null);
   
-  const handleChange = (markdown) => {
+  const handleChange = (markdown: string) => {
     console.log('Markdown updated:', markdown);
   };
   
-  const handleSave = (markdown) => {
+  const handleSave = (markdown: string, documentId: string) => {
     // Save markdown to database or file
     saveToDatabase(markdown);
   };
   
-  const loadExternalContent = (content) => {
+  const loadExternalContent = (content: string) => {
     // Use the component API to load new content
     if (editorRef.current?.setContent) {
       editorRef.current.setContent(content);
@@ -67,7 +85,7 @@ function MyApp() {
       <button onClick={() => loadExternalContent('# New Content')}>
         Load Content
       </button>
-      <button onClick={() => editorRef.current.loadDocument('# New Document', 'doc-123')}>
+      <button onClick={() => editorRef.current?.loadDocument('# New Document', 'doc-123')}>
         Load Document
       </button>
       <SemanticComposer

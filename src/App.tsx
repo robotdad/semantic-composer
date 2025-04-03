@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 import SemanticComposer from './components/SemanticComposer';
+import { DocumentToLoad, SemanticComposerRef } from './types';
 
 function App() {
   // Simple initialization - just start with default content
@@ -8,12 +9,12 @@ function App() {
   const savedContent = localStorage.getItem('editor:default');
   
   // Initial state setup - simple
-  const [markdown, setMarkdown] = useState(savedContent || '');
-  const [theme, setTheme] = useState('light');
-  const [debugMode, setDebugMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [documentToLoad, setDocumentToLoad] = useState(null); // Track document to be loaded
-  const editorRef = useRef(null);
+  const [markdown, setMarkdown] = useState<string>(savedContent || '');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [debugMode, setDebugMode] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [documentToLoad, setDocumentToLoad] = useState<DocumentToLoad | null>(null); // Track document to be loaded
+  const editorRef = useRef<SemanticComposerRef>(null);
   
   // Simple default content loading
   useEffect(() => {
@@ -61,7 +62,7 @@ function App() {
       setTimeout(() => {
         try {
           console.log(`Loading document with ID: ${id}`);
-          editorRef.current.loadDocument(content, id);
+          editorRef.current?.loadDocument(content, id);
           console.log(`Document loaded: ${id}`);
         } catch (error) {
           console.error(`Error loading document:`, error);
@@ -84,13 +85,14 @@ function App() {
       // Reset the document to load to avoid repeating
       setDocumentToLoad(null);
     }
-  }, [documentToLoad, editorRef.current]);
+  // Don't include editorRef.current in the dependency array - use editorRef instead
+  }, [documentToLoad]);
 
-  const handleChange = (value) => {
+  const handleChange = (value: string) => {
     setMarkdown(value);
   };
 
-  const handleSave = (value, docId) => {
+  const handleSave = (value: string, docId?: string) => {
     try {
       console.log(`SAVING TO DOCUMENT: ${docId || 'default'}`);
       
@@ -104,7 +106,7 @@ function App() {
     }
   };
   
-  const handleError = (error) => {
+  const handleError = (error: Error) => {
     console.error('Semantic Composer error:', error);
     // In a real application, you might use a toast notification or error boundary
     // alert(`Editor error: ${error.message}`);
@@ -115,7 +117,7 @@ function App() {
     console.group('localStorage Diagnostic');
     
     // Get all editor-related keys
-    const editorKeys = [];
+    const editorKeys: string[] = [];
     
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -254,7 +256,7 @@ function App() {
                     // Ensure editor ref is ready before calling methods
                     setTimeout(() => {
                       // Load default content
-                      editorRef.current.loadDocument(contentToLoad, "default");
+                      editorRef.current?.loadDocument(contentToLoad, "default");
                       console.log("Default content loaded successfully");
                     }, 50);
                   } catch (error) {
@@ -280,7 +282,7 @@ function App() {
       // Fallback to manual cleanup
       try {
         // Clear all localStorage with editor or demo-content prefix
-        const keysToRemove = [];
+        const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && (key.startsWith('editor:') || key.startsWith('demo-content:'))) {
@@ -303,7 +305,7 @@ function App() {
   const loadSaved = () => {
     try {
       // Find all keys with editor prefix
-      const keysToLoad = [];
+      const keysToLoad: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('editor:')) {
@@ -369,27 +371,28 @@ function App() {
             id="file-upload" 
             accept=".md, .markdown, .txt" 
             style={{ display: 'none' }} 
-            onChange={(e) => {
-              const file = e.target.files[0];
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const file = e.target.files?.[0];
               if (file) {
                 setIsLoading(true);
                 
                 // Read the file
                 const reader = new FileReader();
-                reader.onload = (event) => {
+                reader.onload = (event: ProgressEvent<FileReader>) => {
                   try {
                     const docId = file.name || 'imported-document';
                     console.log(`LOADING FILE: ${docId}`);
                     
                     // Update local state first
-                    setMarkdown(event.target.result);
+                    const content = event.target?.result as string;
+                    setMarkdown(content);
                     
                     // Wait for the next frame to ensure ref is available
                     setTimeout(() => {
                       // Direct approach - call loadDocument method
                       if (editorRef.current) {
                         console.log('Loading content into editor with document ID:', docId);
-                        editorRef.current.loadDocument(event.target.result, docId);
+                        editorRef.current.loadDocument(content, docId);
                       } else {
                         console.error('Editor ref not available');
                       }
@@ -415,7 +418,7 @@ function App() {
             }}
           />
           
-          <button onClick={() => document.getElementById('file-upload').click()}>
+          <button onClick={() => document.getElementById('file-upload')?.click()}>
             Load File
           </button>
           
@@ -425,10 +428,10 @@ function App() {
               try {
                 // Get the content using public API - more reliable than direct access to Crepe
                 const markdown = editorRef.current.getCurrentContent();
-                handleSave(markdown);
+                handleSave(markdown.content, markdown.documentId);
               } catch (e) {
                 console.error("Error getting markdown from editor:", e);
-                if (handleError) handleError(new Error(`Failed to get content from editor: ${e.message}`));
+                if (handleError) handleError(new Error(`Failed to get content from editor: ${(e as Error).message}`));
               }
             } else {
               console.error("Editor reference not available");

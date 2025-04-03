@@ -1,45 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle, RefObject } from 'react';
 import { Crepe } from '@milkdown/crepe';
 import { FiEdit, FiEye, FiType, FiCode, FiSave, FiDownload } from 'react-icons/fi';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
 import './SemanticComposer.css';
+import { SemanticComposerProps, SemanticComposerRef, EditorView, EditorMode } from '../types';
 
-
-/**
- * Semantic Composer - A markdown editor component with rich/raw editing modes
- * 
- * IMPORTANT:
- * This component uses React's forwardRef and useImperativeHandle to expose its API.
- * Always call methods directly without checking method existence or using Object.keys:
- * 
- * - ref.setContent(content, documentId)
- * - ref.loadDocument(content, documentId)
- * - ref.getCurrentContent()
- * - ref.getDocumentId()
- * - ref.reset(options)
- * 
- * @param {Object} props - Component props
- * @param {string} [props.initialValue=''] - Initial markdown content
- * @param {string} [props.initialDocumentId='default'] - Initial document ID for persistence
- * @param {string} [props.defaultMode='edit'] - Default mode ('edit' or 'read')
- * @param {string} [props.defaultView='rich'] - Default view ('rich' or 'raw')
- * @param {Function} [props.onChange] - Callback for content changes
- * @param {Function} [props.onSave] - Callback for save operations with signature (content, documentId)
- * @param {Function} [props.onModeChange] - Callback for mode changes
- * @param {Function} [props.onViewChange] - Callback for view changes
- * @param {Function} [props.onError] - Callback for error handling
- * @param {string} [props.theme='light'] - Theme ('light' or 'dark')
- * @param {string} [props.width='100%'] - Component width
- * @param {string} [props.placeholder='Start writing...'] - Placeholder text
- * @param {boolean} [props.readOnly=false] - Read-only mode
- * @param {boolean} [props.autoFocus=true] - Auto-focus on load
- * @param {boolean} [props.spellCheck=true] - Enable spell check
- * @param {number} [props.autoSaveInterval=5000] - Auto-save interval in ms
- * @param {boolean} [props.debug=false] - Enable debug logging
- * @param {string} [props.storageKeyPrefix='editor'] - Prefix for localStorage keys
- */
-const SemanticComposer = forwardRef((props, ref) => {
+const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>((props, ref) => {
   const {
     initialValue = '',
     initialDocumentId = 'default',
@@ -62,7 +29,7 @@ const SemanticComposer = forwardRef((props, ref) => {
   } = props;
   
   // Make a consistent storage key format
-  const makeStorageKey = (docId) => `${storageKeyPrefix}:${docId}`;
+  const makeStorageKey = (docId: string): string => `${storageKeyPrefix}:${docId}`;
   
   // Get the document ID from localStorage or props
   const savedDocId = localStorage.getItem(`${storageKeyPrefix}:current-document-id`);
@@ -87,15 +54,15 @@ const SemanticComposer = forwardRef((props, ref) => {
   }
   
   // Simple state setup with correct initial content
-  const [mode, setMode] = useState(defaultMode);
-  const [view, setView] = useState(defaultView);
-  const [content, setContent] = useState(startingContent);
-  const [documentId, setDocumentId] = useState(startingDocId);
-  const editorRef = useRef(null);
-  const crepeRef = useRef(null);
+  const [mode, setMode] = useState<EditorMode>(defaultMode);
+  const [view, setView] = useState<EditorView>(defaultView);
+  const [content, setContent] = useState<string>(startingContent);
+  const [documentId, setDocumentId] = useState<string>(startingDocId);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const crepeRef = useRef<any>(null);
   
   // Content key derived from document ID
-  const contentKeyRef = useRef(makeStorageKey(startingDocId));
+  const contentKeyRef = useRef<string>(makeStorageKey(startingDocId));
   
   // Log the documentId for debugging
   useEffect(() => {
@@ -134,7 +101,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     
     // Get current content directly from editor instance with document ID
     getCurrentContent: () => {
-      let currentContent;
+      let currentContent: string;
       
       // Get content from the correct source
       if (crepeRef.current && view === 'rich') {
@@ -156,7 +123,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     },
     
     // ENHANCED API: Set content with optional document ID
-    setContent: (newContent, newDocumentId = null) => {
+    setContent: (newContent: string, newDocumentId: string | null = null) => {
       if (debug) console.log(`setContent called with${newDocumentId ? ' new document: ' + newDocumentId : ' content update'}`);
       
       try {
@@ -177,7 +144,7 @@ const SemanticComposer = forwardRef((props, ref) => {
             }
           } catch (error) {
             if (debug) console.error('Editor cleanup error:', error);
-            if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
+            if (onError) onError(new Error(`Editor cleanup error: ${(error as Error).message}`));
           }
         }
         
@@ -214,13 +181,13 @@ const SemanticComposer = forwardRef((props, ref) => {
         return true;
       } catch (error) {
         if (debug) console.error('Content update failed:', error);
-        if (onError) onError(new Error(`Content update failed: ${error.message}`));
+        if (onError) onError(new Error(`Content update failed: ${(error as Error).message}`));
         return false;
       }
     },
     
     // Load document - simplified API that calls setContent with document ID
-    loadDocument: (newContent, docId) => {
+    loadDocument: (newContent: string, docId: string) => {
       if (!docId) {
         if (debug) console.error('loadDocument called without document ID');
         return false;
@@ -251,7 +218,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         return true;
       } catch (error) {
         if (debug) console.error('Document load failed:', error);
-        if (onError) onError(new Error(`Document load failed: ${error.message}`));
+        if (onError) onError(new Error(`Document load failed: ${(error as Error).message}`));
         return false;
       }
     },
@@ -283,7 +250,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         // 2. Clear all editor storage if requested
         if (clearAllStorage) {
           // Find all keys with storageKeyPrefix
-          const keysToRemove = [];
+          const keysToRemove: string[] = [];
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key && key.startsWith(`${storageKeyPrefix}:`)) {
@@ -332,7 +299,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         return true;
       } catch (error) {
         if (debug) console.error('Error resetting editor:', error);
-        if (onError) onError(new Error(`Error resetting editor: ${error.message}`));
+        if (onError) onError(new Error(`Error resetting editor: ${(error as Error).message}`));
         return false;
       }
     },
@@ -370,41 +337,50 @@ const SemanticComposer = forwardRef((props, ref) => {
         // Create editor with current content from React state
         const crepe = new Crepe({
           root: editorRef.current,
-          defaultValue: content || ''
+          defaultValue: content || '',
+          // Additional configuration will need to be applied after creation
         });
         
         // Create the editor
         crepe.create()
           .then(() => {
-            // Store reference only after creation is complete
-            crepeRef.current = crepe;
-            
-            // Set read-only state
-            crepe.setReadonly(mode === 'read' || readOnly);
-            
-            // Simple event listener for content changes
-            crepe.on((listener) => {
-              listener.markdownUpdated((markdown) => {
-                if (typeof markdown === 'string') {
-                  // Update React state and notify parent
-                  setContent(markdown);
-                  if (onChange) onChange(markdown);
-                }
+            try {
+              // Store reference only after creation is complete
+              crepeRef.current = crepe;
+              
+              // Set read-only state
+              crepe.setReadonly(mode === 'read' || readOnly);
+              
+              // Try to configure the editor to avoid blockConfig errors
+              // Apply any necessary configurations here
+              
+              // Simple event listener for content changes
+              crepe.on((listener: any) => {
+                listener.markdownUpdated((markdown: string) => {
+                  if (typeof markdown === 'string') {
+                    // Update React state and notify parent
+                    setContent(markdown);
+                    if (onChange) onChange(markdown);
+                  }
+                });
               });
-            });
-            
-            if (debug) {
-              console.log('Editor initialized successfully');
+              
+              if (debug) {
+                console.log('Editor initialized successfully');
+              }
+            } catch (configError) {
+              if (debug) console.error('Editor configuration error:', configError);
+              // Continue using the editor even if configuration fails
             }
           })
           .catch(error => {
             if (debug) console.error('Editor creation failed:', error);
-            if (onError) onError(new Error(`Editor creation failed: ${error.message}`));
+            if (onError) onError(new Error(`Editor creation failed: ${(error as Error).message}`));
             crepeRef.current = null;
           });
       } catch (error) {
         if (debug) console.error('Editor initialization failed:', error);
-        if (onError) onError(new Error(`Editor initialization failed: ${error.message}`));
+        if (onError) onError(new Error(`Editor initialization failed: ${(error as Error).message}`));
       }
     }
     
@@ -424,7 +400,7 @@ const SemanticComposer = forwardRef((props, ref) => {
       // this is persistence across sessions. Clients should call reset() to clear storage.
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, startingContent, mode, readOnly, debug, onChange, onError]);
+  }, [view, content, mode, readOnly, debug, onChange, onError]);
   
   // Update read-only state when mode changes
   useEffect(() => {
@@ -432,7 +408,7 @@ const SemanticComposer = forwardRef((props, ref) => {
       crepeRef.current.setReadonly(mode === 'read' || readOnly);
       
       // Add specific class for styling
-      const editorDOM = editorRef.current.querySelector('.milkdown');
+      const editorDOM = editorRef.current?.querySelector('.milkdown');
       if (editorDOM) {
         if (mode === 'read') {
           editorDOM.classList.add('read-only');
@@ -445,7 +421,7 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // Toggle between edit and read modes
   const toggleMode = () => {
-    const newMode = mode === 'edit' ? 'read' : 'edit';
+    const newMode: EditorMode = mode === 'edit' ? 'read' : 'edit';
     
     // If in raw mode and trying to switch to read mode,
     // we need to switch to rich mode first then set readonly
@@ -475,7 +451,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         return; // Exit early to avoid setting mode directly
       } catch (error) {
         if (debug) console.error('Error transitioning from raw to read:', error);
-        if (onError) onError(new Error(`Error transitioning from raw to read: ${error.message}`));
+        if (onError) onError(new Error(`Error transitioning from raw to read: ${(error as Error).message}`));
       }
     }
     // Normal case - just toggle mode
@@ -512,7 +488,7 @@ const SemanticComposer = forwardRef((props, ref) => {
   };
   
   // Utility function to clean <br /> tags from table cells and document end
-  const cleanupBrTags = (markdown) => {
+  const cleanupBrTags = (markdown: string): string => {
     if (!markdown) return markdown;
     
     // Split the markdown into lines for processing
@@ -540,7 +516,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     if (mode !== 'edit') return;
     
     // Calculate new view
-    const newView = view === 'rich' ? 'raw' : 'rich';
+    const newView: EditorView = view === 'rich' ? 'raw' : 'rich';
     
     // From rich to raw: Get content from the editor (source of truth)
     if (view === 'rich' && crepeRef.current) {
@@ -583,7 +559,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         }
       } catch (error) {
         if (debug) console.error('Error switching to raw view:', error);
-        if (onError) onError(new Error(`Error switching to raw view: ${error.message}`));
+        if (onError) onError(new Error(`Error switching to raw view: ${(error as Error).message}`));
       }
     }
     // From raw to rich: content in React state will be used to initialize editor
@@ -605,7 +581,7 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // Handle raw editor changes
   // In raw mode, the textarea becomes the temporary source of truth
-  const handleRawChange = (e) => {
+  const handleRawChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
     // Update React state with raw editor content
     setContent(newContent);
@@ -628,7 +604,7 @@ const SemanticComposer = forwardRef((props, ref) => {
   // Save handler - memoized to avoid dependency loops
   const handleSave = useCallback(() => {
     // Get content from appropriate source
-    let contentToSave;
+    let contentToSave: string;
     
     if (view === 'rich' && crepeRef.current) {
       try {
@@ -656,12 +632,12 @@ const SemanticComposer = forwardRef((props, ref) => {
       localStorage.setItem(storageKey, contentToSave);
     } catch (error) {
       if (debug) console.error('Error saving content:', error);
-      if (onError) onError(new Error(`Error saving content: ${error.message}`));
+      if (onError) onError(new Error(`Error saving content: ${(error as Error).message}`));
     }
     
     // Call onSave if provided (AFTER saving locally) - include document ID
     if (onSave) onSave(contentToSave, documentId);
-  }, [content, onSave, debug, onError, documentId, storageKeyPrefix, view]);
+  }, [content, onSave, debug, onError, documentId, view]);
     
   // Apply theme
   useEffect(() => {
@@ -694,7 +670,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         }
       } catch (error) {
         if (debug) console.error('Error updating content:', error);
-        if (onError) onError(new Error(`Error updating content: ${error.message}`));
+        if (onError) onError(new Error(`Error updating content: ${(error as Error).message}`));
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -711,7 +687,7 @@ const SemanticComposer = forwardRef((props, ref) => {
       
       try {
         // Get current content from the appropriate source of truth
-        let currentContent;
+        let currentContent: string;
         
         if (view === 'rich' && crepeRef.current) {
           // From rich editor
@@ -745,11 +721,11 @@ const SemanticComposer = forwardRef((props, ref) => {
 
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSaveInterval, debug, view, content, onSave, documentId, storageKeyPrefix]);
+  }, [autoSaveInterval, debug, view, content, onSave, documentId]);
   
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       // Save on Ctrl+S or Command+S
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
@@ -819,7 +795,7 @@ const SemanticComposer = forwardRef((props, ref) => {
                 }, 100);
               } catch (error) {
                 if (debug) console.error('Error exporting markdown:', error);
-                if (onError) onError(new Error(`Error exporting markdown: ${error.message}`));
+                if (onError) onError(new Error(`Error exporting markdown: ${(error as Error).message}`));
               }
             }} 
             title="Export markdown"
