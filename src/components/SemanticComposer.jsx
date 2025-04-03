@@ -9,12 +9,23 @@ import './SemanticComposer.css';
 /**
  * Semantic Composer - A markdown editor component with rich/raw editing modes
  * 
+ * IMPORTANT:
+ * This component uses React's forwardRef and useImperativeHandle to expose its API.
+ * Always call methods directly without checking method existence or using Object.keys:
+ * 
+ * - ref.setContent(content, documentId)
+ * - ref.loadDocument(content, documentId)
+ * - ref.getCurrentContent()
+ * - ref.getDocumentId()
+ * - ref.reset(options)
+ * 
  * @param {Object} props - Component props
  * @param {string} [props.initialValue=''] - Initial markdown content
+ * @param {string} [props.initialDocumentId='default'] - Initial document ID for persistence
  * @param {string} [props.defaultMode='edit'] - Default mode ('edit' or 'read')
  * @param {string} [props.defaultView='rich'] - Default view ('rich' or 'raw')
  * @param {Function} [props.onChange] - Callback for content changes
- * @param {Function} [props.onSave] - Callback for save operations
+ * @param {Function} [props.onSave] - Callback for save operations with signature (content, documentId)
  * @param {Function} [props.onModeChange] - Callback for mode changes
  * @param {Function} [props.onViewChange] - Callback for view changes
  * @param {Function} [props.onError] - Callback for error handling
@@ -26,11 +37,12 @@ import './SemanticComposer.css';
  * @param {boolean} [props.spellCheck=true] - Enable spell check
  * @param {number} [props.autoSaveInterval=5000] - Auto-save interval in ms
  * @param {boolean} [props.debug=false] - Enable debug logging
- * @param {string} [props.storageKey='semantic-composer-default'] - Storage key for localStorage persistence
+ * @param {string} [props.storageKeyPrefix='editor'] - Prefix for localStorage keys
  */
 const SemanticComposer = forwardRef((props, ref) => {
   const {
     initialValue = '',
+    initialDocumentId = 'default',
     defaultMode = 'edit',
     defaultView = 'rich',
     onChange,
@@ -46,23 +58,67 @@ const SemanticComposer = forwardRef((props, ref) => {
     spellCheck = true,
     autoSaveInterval = 5000,
     debug = false,
-    storageKey = 'semantic-composer-default',
+    storageKeyPrefix = 'editor',
   } = props;
   
-  // Ensure initialValue is a string
-  const safeInitialValue = typeof initialValue === 'string' ? initialValue : '';
+  // Make a consistent storage key format
+  const makeStorageKey = (docId) => `${storageKeyPrefix}:${docId}`;
   
-  // Storage key for content (used for autosave and temporary persistence)
-  const contentKey = `${storageKey}:content`;
+  // Get the document ID from localStorage or props
+  const savedDocId = localStorage.getItem(`${storageKeyPrefix}:current-document-id`);
+  const startingDocId = savedDocId || initialDocumentId;
   
-  // Simple state setup - no complex initialization
+  // Determine the initial content to use
+  let startingContent = '';
+  if (startingDocId) {
+    // Try to load the document's content if available
+    const docContent = localStorage.getItem(makeStorageKey(startingDocId));
+    if (docContent) {
+      startingContent = docContent;
+      if (debug) {
+        console.log(`RESTORED DOCUMENT: ${startingDocId} (length: ${docContent.length})`);
+      }
+    }
+  }
+  
+  // Fallback to the provided initialValue if no document content
+  if (!startingContent) {
+    startingContent = typeof initialValue === 'string' ? initialValue : '';
+  }
+  
+  // Simple state setup with correct initial content
   const [mode, setMode] = useState(defaultMode);
   const [view, setView] = useState(defaultView);
-  const [content, setContent] = useState(safeInitialValue || '');
+  const [content, setContent] = useState(startingContent);
+  const [documentId, setDocumentId] = useState(startingDocId);
   const editorRef = useRef(null);
   const crepeRef = useRef(null);
   
+  // Content key derived from document ID
+  const contentKeyRef = useRef(makeStorageKey(startingDocId));
+  
+  // Log the documentId for debugging
+  useEffect(() => {
+    if (debug) {
+      console.log(`COMPONENT RENDER: documentId=${documentId}`);
+    }
+  }, [documentId, debug]);
+  
+  // Update content key when document ID changes (and ONLY then)
+  useEffect(() => {
+    contentKeyRef.current = makeStorageKey(documentId);
+    
+    if (debug) {
+      console.log(`DOCUMENT ID CHANGED: ${documentId}`);
+      console.log(`STORAGE KEY SET TO: ${contentKeyRef.current}`);
+    }
+    
+    // Persist the current document ID
+    localStorage.setItem(`${storageKeyPrefix}:current-document-id`, documentId);
+  }, [documentId, debug, storageKeyPrefix]);
+  
   // Expose methods to parent component via ref
+  // IMPORTANT: This creates getters/setters that don't show up in typical property enumeration
   useImperativeHandle(ref, () => ({
     // Get current editor view state
     getCurrentView: () => view,
@@ -73,55 +129,212 @@ const SemanticComposer = forwardRef((props, ref) => {
     // Get crepe instance
     getCrepeInstance: () => crepeRef.current,
     
-    // Get current content directly from editor instance
+    // Get current document ID
+    getDocumentId: () => documentId,
+    
+    // Get current content directly from editor instance with document ID
     getCurrentContent: () => {
-      // Always get content directly from editor if possible
+      let currentContent;
+      
+      // Get content from the correct source
       if (crepeRef.current && view === 'rich') {
         try {
-          return crepeRef.current.getMarkdown();
+          currentContent = crepeRef.current.getMarkdown();
         } catch (error) {
           if (debug) console.error('Error getting content from editor:', error);
-          throw new Error(`Failed to get content from editor: ${error.message}`);
+          currentContent = content;
         }
-      } else if (view === 'raw') {
-        // In raw mode, the textarea state is accurate
-        return content;
+      } else {
+        currentContent = content;
       }
-      throw new Error('No valid editor instance available');
+      
+      // Return an object with both content and document ID
+      return {
+        content: currentContent,
+        documentId: documentId
+      };
     },
     
-    // CORE API: Set content - the primary method for consumers to update content
-    setContent: (newContent) => {
-      if (debug) console.log('setContent called with new content');
+    // ENHANCED API: Set content with optional document ID
+    setContent: (newContent, newDocumentId = null) => {
+      if (debug) console.log(`setContent called with${newDocumentId ? ' new document: ' + newDocumentId : ' content update'}`);
       
-      // 1. Clean up any HTML artifacts 
-      const cleanedContent = typeof newContent === 'string' ? 
-        cleanupBrTags(newContent) : '';
-      
-      // 2. If in rich mode and editor exists, destroy it
-      if (view === 'rich' && crepeRef.current) {
-        try {
-          // Destroy current instance
-          crepeRef.current.destroy();
-          crepeRef.current = null;
-          
-          // Clear container
-          if (editorRef.current) {
-            editorRef.current.innerHTML = '';
+      try {
+        // 1. Clean up any HTML artifacts 
+        const cleanedContent = typeof newContent === 'string' ? 
+          cleanupBrTags(newContent) : '';
+        
+        // 2. If in rich mode and editor exists, destroy it
+        if (view === 'rich' && crepeRef.current) {
+          try {
+            // Destroy current instance
+            crepeRef.current.destroy();
+            crepeRef.current = null;
+            
+            // Clear container
+            if (editorRef.current) {
+              editorRef.current.innerHTML = '';
+            }
+          } catch (error) {
+            if (debug) console.error('Editor cleanup error:', error);
+            if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
           }
-        } catch (error) {
-          if (debug) console.error('Editor cleanup error:', error);
-          if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
         }
+        
+        // 3. Handle document ID change if provided
+        if (newDocumentId) {
+          // Set new document ID
+          setDocumentId(newDocumentId);
+          
+          // Update the storage key (through the useEffect)
+          contentKeyRef.current = makeStorageKey(newDocumentId);
+          
+          // Save the document ID to localStorage
+          localStorage.setItem(`${storageKeyPrefix}:current-document-id`, newDocumentId);
+          
+          if (debug) {
+            console.log(`DOCUMENT ID UPDATED: ${newDocumentId}`);
+            console.log(`NEW STORAGE KEY: ${contentKeyRef.current}`);
+          }
+        }
+        
+        // 4. Update content state
+        setContent(cleanedContent);
+        
+        // 5. Save to localStorage with current key (which may have been updated)
+        const storageKey = contentKeyRef.current;
+        localStorage.setItem(storageKey, cleanedContent);
+        
+        if (debug) {
+          console.log(`CONTENT SAVED TO: ${storageKey}`);
+        }
+        
+        // 6. The editor will be reinitialized via useEffect with the new content
+        
+        return true;
+      } catch (error) {
+        if (debug) console.error('Content update failed:', error);
+        if (onError) onError(new Error(`Content update failed: ${error.message}`));
+        return false;
+      }
+    },
+    
+    // Load document - simplified API that calls setContent with document ID
+    loadDocument: (newContent, docId) => {
+      if (!docId) {
+        if (debug) console.error('loadDocument called without document ID');
+        return false;
       }
       
-      // 3. Update the React state with new content
-      setContent(cleanedContent);
+      if (debug) console.log(`LOAD DOCUMENT: ${docId}`);
       
-      // 4. The editor will be reinitialized via useEffect with the new content
-      // This ensures a clean lifecycle: destroy → update state → reinitialize
+      // Directly call our enhanced setContent implementation
+      try {
+        // Clean up any HTML artifacts 
+        const cleanedContent = typeof newContent === 'string' ? 
+          cleanupBrTags(newContent) : '';
+        
+        // Update document ID and content
+        setDocumentId(docId);
+        contentKeyRef.current = makeStorageKey(docId);
+        setContent(cleanedContent);
+        
+        // Save to localStorage
+        localStorage.setItem(makeStorageKey(docId), cleanedContent);
+        localStorage.setItem(`${storageKeyPrefix}:current-document-id`, docId);
+        
+        if (debug) {
+          console.log(`DOCUMENT LOADED: ${docId}`);
+          console.log(`STORAGE KEY: ${makeStorageKey(docId)}`);
+        }
+        
+        return true;
+      } catch (error) {
+        if (debug) console.error('Document load failed:', error);
+        if (onError) onError(new Error(`Document load failed: ${error.message}`));
+        return false;
+      }
+    },
+    
+    // ENHANCED RESET API: Reset editor state with document ID support
+    reset: (options = {}) => {
+      const {
+        clearContent = true,         // Clear editor content
+        clearCurrentStorage = true,  // Clear current document storage
+        clearAllStorage = false,     // Clear all editor-related storage
+        resetToDefaultDocument = false // Reset document ID to default
+      } = options;
       
-      return true; // Success
+      try {
+        // 1. Clean up editor instance first to prevent state issues
+        if (crepeRef.current) {
+          try {
+            crepeRef.current.destroy();
+            crepeRef.current = null;
+            
+            if (editorRef.current) {
+              editorRef.current.innerHTML = '';
+            }
+          } catch (error) {
+            if (debug) console.error('Error destroying editor instance:', error);
+          }
+        }
+        
+        // 2. Clear all editor storage if requested
+        if (clearAllStorage) {
+          // Find all keys with storageKeyPrefix
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(`${storageKeyPrefix}:`)) {
+              keysToRemove.push(key);
+            }
+          }
+          
+          // Remove all found keys
+          keysToRemove.forEach(key => localStorage.removeItem(key));
+          
+          if (debug) console.log(`Cleared ${keysToRemove.length} editor storage keys`);
+        }
+        // Otherwise just clear current document's storage
+        else if (clearCurrentStorage) {
+          localStorage.removeItem(contentKeyRef.current);
+          if (debug) console.log(`Cleared storage for ${contentKeyRef.current}`);
+        }
+        
+        // 3. Reset document ID if requested
+        if (resetToDefaultDocument) {
+          // Update storage key reference first
+          contentKeyRef.current = makeStorageKey('default');
+          
+          // Then set document ID (triggers the useEffect)
+          setDocumentId('default');
+          
+          // Update localStorage
+          localStorage.setItem(`${storageKeyPrefix}:current-document-id`, 'default');
+          
+          if (debug) {
+            console.log('Reset to default document');
+            console.log(`New storage key: ${contentKeyRef.current}`);
+          }
+        }
+        
+        // 4. Clear content if requested
+        if (clearContent) {
+          // Set empty content
+          setContent('');
+          
+          // Also clear localStorage for current document
+          localStorage.removeItem(contentKeyRef.current);
+        }
+        
+        // 5. Return success
+        return true;
+      } catch (error) {
+        if (debug) console.error('Error resetting editor:', error);
+        if (onError) onError(new Error(`Error resetting editor: ${error.message}`));
+        return false;
+      }
     },
     
     // Toggle view
@@ -131,7 +344,7 @@ const SemanticComposer = forwardRef((props, ref) => {
     toggleEditorMode: () => toggleMode(),
     
     // Get the current storage key being used
-    getStorageKey: () => storageKey
+    getStorageKey: () => contentKeyRef.current
   }));
   
   // Initialize Milkdown editor - editor is the source of truth for content
@@ -144,12 +357,14 @@ const SemanticComposer = forwardRef((props, ref) => {
         
         if (debug) {
           console.log('Initializing editor with content:', 
-            safeInitialValue ? safeInitialValue.substring(0, 30) + '...' : 'empty');
+            content ? content.substring(0, 30) + '...' : 'empty');
         }
         
         // Only log in debug mode to reduce console noise
         if (debug) {
-          console.log('INIT CONTENT:', safeInitialValue?.substring(0, 30));
+          console.log('EDITOR INIT - ContentKeyRef:', contentKeyRef.current);
+          console.log('EDITOR INIT - Content available:', !!content);
+          console.log('EDITOR INIT - Content length:', content?.length || 0);
         }
         
         // Create editor with current content from React state
@@ -205,19 +420,11 @@ const SemanticComposer = forwardRef((props, ref) => {
         }
       }
       
-      // If this is a component unmount (not just view change), clean up localStorage
-      if (view === 'rich') {
-        try {
-          // Remove temporary localStorage when component is destroyed
-          localStorage.removeItem(contentKey);
-          if (debug) console.log(`Cleaned up localStorage key: ${contentKey}`);
-        } catch (error) {
-          if (debug) console.error('Error cleaning localStorage on unmount:', error);
-        }
-      }
+      // NOTE: We don't automatically remove localStorage on unmount because
+      // this is persistence across sessions. Clients should call reset() to clear storage.
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, safeInitialValue, mode, readOnly, debug, onChange, onError]);
+  }, [view, startingContent, mode, readOnly, debug, onChange, onError]);
   
   // Update read-only state when mode changes
   useEffect(() => {
@@ -284,7 +491,7 @@ const SemanticComposer = forwardRef((props, ref) => {
             const cleanedContent = cleanupBrTags(currentContent);
             setContent(cleanedContent);
             if (debug) {
-              console.log('RICH TO READ - CLEANED CONTENT SAVED TO STATE:', cleanedContent);
+              console.log('RICH TO READ - Content cleaned and saved to state');
             }
           }
         } catch (error) {
@@ -351,10 +558,10 @@ const SemanticComposer = forwardRef((props, ref) => {
           
           // Also save to localStorage
           try {
-            localStorage.setItem(contentKey, cleanedContent);
+            localStorage.setItem(contentKeyRef.current, cleanedContent);
             
             if (debug) {
-              console.log(`Saved content to ${contentKey} for raw mode transition`);
+              console.log(`Saved content to ${contentKeyRef.current} for raw mode transition`);
             }
           } catch (error) {
             if (debug) console.error('Error saving content during view toggle:', error);
@@ -406,10 +613,12 @@ const SemanticComposer = forwardRef((props, ref) => {
     
     // Save to localStorage for persistence
     try {
-      localStorage.setItem(contentKey, newContent);
+      // Get storage key from document ID
+      const storageKey = makeStorageKey(documentId);
+      localStorage.setItem(storageKey, newContent);
       
       if (debug) {
-        console.log(`Raw editor change: saved to ${contentKey}`);
+        console.log(`RAW EDITOR SAVE TO: ${storageKey}`);
       }
     } catch (error) {
       if (debug) console.error('Error saving raw editor content:', error);
@@ -418,24 +627,41 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // Save handler - memoized to avoid dependency loops
   const handleSave = useCallback(() => {
-    // Ensure content is a string before saving
-    const contentToSave = typeof content === 'string' ? content : '';
+    // Get content from appropriate source
+    let contentToSave;
     
-    // Call onSave if provided
-    if (onSave) onSave(contentToSave);
-    
-    // Store in localStorage
-    try {
-      localStorage.setItem(contentKey, contentToSave);
-      
-      if (debug) {
-        console.log(`Saved content to ${contentKey}`, contentToSave.substring(0, 30) + '...');
+    if (view === 'rich' && crepeRef.current) {
+      try {
+        contentToSave = crepeRef.current.getMarkdown();
+      } catch (error) {
+        if (debug) console.error('Error getting content for save:', error);
+        contentToSave = content;
       }
+    } else {
+      contentToSave = content;
+    }
+    
+    // Ensure content is a string before saving
+    contentToSave = typeof contentToSave === 'string' ? contentToSave : '';
+    
+    // Get key from document ID using the utility function
+    const storageKey = makeStorageKey(documentId);
+    
+    if (debug) {
+      console.log(`MANUAL SAVE TO: ${storageKey}`);
+    }
+    
+    // Store in localStorage using current key
+    try {
+      localStorage.setItem(storageKey, contentToSave);
     } catch (error) {
       if (debug) console.error('Error saving content:', error);
       if (onError) onError(new Error(`Error saving content: ${error.message}`));
     }
-  }, [content, onSave, contentKey, debug, onError]);
+    
+    // Call onSave if provided (AFTER saving locally) - include document ID
+    if (onSave) onSave(contentToSave, documentId);
+  }, [content, onSave, debug, onError, documentId, storageKeyPrefix, view]);
     
   // Apply theme
   useEffect(() => {
@@ -444,8 +670,16 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // React to external initialValue changes
   useEffect(() => {
+    // Process the new initial value
+    const newContent = typeof initialValue === 'string' ? initialValue : '';
+    
+    if (debug) {
+      console.log('InitialValue changed, updating content:', 
+        newContent ? newContent.substring(0, 30) + '...' : 'empty');
+    }
+    
     // Update content state
-    setContent(safeInitialValue);
+    setContent(newContent);
     
     // For rich mode, recreate editor with new content
     if (view === 'rich' && crepeRef.current) {
@@ -468,10 +702,13 @@ const SemanticComposer = forwardRef((props, ref) => {
   
   // Auto-save functionality (active by default)
   useEffect(() => {
-    // Skip only if explicitly disabled (interval set to 0)
+    // Skip if disabled (interval set to 0)
     if (autoSaveInterval === 0) return;
     
     const interval = setInterval(() => {
+      // Skip auto-save if component is being unmounted
+      if (!contentKeyRef.current) return;
+      
       try {
         // Get current content from the appropriate source of truth
         let currentContent;
@@ -488,18 +725,27 @@ const SemanticComposer = forwardRef((props, ref) => {
         
         // Save to localStorage and notify parent via onSave if provided
         if (typeof currentContent === 'string') {
-          localStorage.setItem(contentKey, currentContent);
-          if (onSave) onSave(currentContent);
-          if (debug) console.log(`Auto-saved content to ${contentKey}`);
+          // Always use the current documentId from component state
+          const storageKey = makeStorageKey(documentId);
+          
+          if (debug) {
+            console.log(`AUTO-SAVE TO: ${storageKey} (docId: ${documentId})`);
+          }
+          
+          // Save to localStorage
+          localStorage.setItem(storageKey, currentContent);
+          
+          // Notify parent with both content and document ID
+          if (onSave) onSave(currentContent, documentId);
         }
       } catch (error) {
-        if (debug) console.error('Error during auto-save:', error);
+        if (debug) console.error('Auto-save error:', error);
       }
     }, autoSaveInterval);
 
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSaveInterval, debug, contentKey, view, content, onSave]);
+  }, [autoSaveInterval, debug, view, content, onSave, documentId, storageKeyPrefix]);
   
   // Keyboard shortcuts
   useEffect(() => {

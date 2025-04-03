@@ -3,21 +3,23 @@ import './App.css';
 import SemanticComposer from './components/SemanticComposer';
 
 function App() {
-  // Check for saved content first
-  const contentKey = 'demo-content:content';
-  const savedContent = localStorage.getItem(contentKey);
+  // Simple initialization - just start with default content
+  // We'll handle active document loading properly in the editor component
+  const savedContent = localStorage.getItem('editor:default');
   
   // Initial state setup - simple
   const [markdown, setMarkdown] = useState(savedContent || '');
   const [theme, setTheme] = useState('light');
   const [debugMode, setDebugMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [documentToLoad, setDocumentToLoad] = useState(null); // Track document to be loaded
   const editorRef = useRef(null);
   
   // Simple default content loading
   useEffect(() => {
     // Only try to load default.md if no saved content
     if (!savedContent) {
+      setIsLoading(true);
       fetch(`${process.env.PUBLIC_URL}/content/default.md`)
         .then(response => {
           if (response.ok) {
@@ -30,28 +32,75 @@ function App() {
           // Only update if content was loaded successfully
           if (content) {
             setMarkdown(content);
+            
+            // Save to localStorage with the correct document ID
+            try {
+              localStorage.setItem('editor:default', content);
+              console.log('Default content saved to localStorage');
+            } catch (error) {
+              console.error('Error saving default content:', error);
+            }
           }
+          setIsLoading(false);
+        })
+        .catch(error => {
+          console.error('Error loading default content:', error);
+          setIsLoading(false);
         });
     }
   }, [savedContent]);
+  
+  // New effect to handle document loading when the editor ref is ready
+  useEffect(() => {
+    // Only proceed if we have a document to load AND editor ref is available
+    if (documentToLoad && editorRef.current) {
+      const { id, content } = documentToLoad;
+      console.log(`LOADING DOCUMENT: ${id} (editor ref is available)`);
+      
+          // Use setTimeout to ensure the ref is fully available
+      setTimeout(() => {
+        try {
+          console.log(`Loading document with ID: ${id}`);
+          editorRef.current.loadDocument(content, id);
+          console.log(`Document loaded: ${id}`);
+        } catch (error) {
+          console.error(`Error loading document:`, error);
+          
+          // Fallback - update content state at minimum
+          setMarkdown(content);
+        }
+      }, 50);
+      
+      // Verify storage key if possible
+      try {
+        if (typeof editorRef.current.getStorageKey === 'function') {
+          const key = editorRef.current.getStorageKey();
+          console.log(`Active storage key: ${key}`);
+        }
+      } catch (err) {
+        console.error('Error getting storage key:', err);
+      }
+      
+      // Reset the document to load to avoid repeating
+      setDocumentToLoad(null);
+    }
+  }, [documentToLoad, editorRef.current]);
 
   const handleChange = (value) => {
     setMarkdown(value);
   };
 
-  const handleSave = (value) => {
+  const handleSave = (value, docId) => {
     try {
-      console.log("Saving content:", value?.substring(0, 30) + "...");
+      console.log(`SAVING TO DOCUMENT: ${docId || 'default'}`);
       
-      // Get the component's current storage key
-      const componentsKey = 'demo-content';
-      const contentKey = `${componentsKey}:content`;
+      // No need to save to localStorage, the component already did that
+      // We'd normally save to server or perform other actions here
       
-      // Save to localStorage with the correct key
-      localStorage.setItem(contentKey, value);
-      console.log('Content saved successfully');
+      // For demo purposes, log the document ID we received
+      console.log(`Content received for document: ${docId || 'default'} (length: ${value?.length || 0})`);
     } catch (error) {
-      console.error('Error saving content:', error);
+      console.error('Error in save handler:', error);
     }
   };
   
@@ -65,37 +114,43 @@ function App() {
   const printLocalStorage = () => {
     console.group('localStorage Diagnostic');
     
-    // Current component storage key
-    const componentsKey = 'demo-content';
-    const contentKey = `${componentsKey}:content`;
+    // Get all editor-related keys
+    const editorKeys = [];
     
-    // Print current storage
-    console.log(`${contentKey}:`, localStorage.getItem(contentKey));
-    
-    // Print all keys with component prefix (to catch any we might have missed)
-    const keysWithPrefix = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith(`${componentsKey}:`) && key !== contentKey) {
-        keysWithPrefix.push(key);
+      if (key && key.startsWith('editor:')) {
+        editorKeys.push(key);
       }
     }
     
-    if (keysWithPrefix.length > 0) {
-      console.log('Other component keys found:');
-      keysWithPrefix.forEach(key => {
+    // Print current document info from localStorage
+    const currentDocId = localStorage.getItem('editor:current-document-id') || 'default';
+    console.log(`Current document ID from localStorage: ${currentDocId}`);
+    
+    // Print all editor storage keys
+    if (editorKeys.length > 0) {
+      console.log('Editor storage keys:');
+      editorKeys.forEach(key => {
         const value = localStorage.getItem(key);
-        console.log(`- ${key}:`, value ? value.substring(0, 50) + (value.length > 50 ? '...' : '') : 'null');
+        console.log(`- ${key}: ${value ? `[${value.length} chars]` : 'null'}`);
       });
     }
     
-    // Print editor state information
+    // Print editor state information directly
     if (editorRef.current) {
-      console.log('Editor state:', {
-        'View mode': editorRef.current.getCurrentView(),
-        'Edit mode': editorRef.current.getCurrentMode(),
-        'Storage key': editorRef.current.getStorageKey?.() || componentsKey
-      });
+      try {
+        console.log('Editor state:');
+        console.log('- View mode:', editorRef.current.getCurrentView());
+        console.log('- Edit mode:', editorRef.current.getCurrentMode());
+        console.log('- Document ID:', editorRef.current.getDocumentId());
+        console.log('- Storage key:', editorRef.current.getStorageKey());
+        
+        const content = editorRef.current.getCurrentContent();
+        console.log('- Content length:', content.content.length);
+      } catch (error) {
+        console.error('Error getting editor state:', error);
+      }
     }
     
     console.groupEnd();
@@ -104,16 +159,24 @@ function App() {
   const printEditorState = () => {
     if (editorRef.current) {
       console.group('Editor State Diagnostic');
-      console.log('View mode:', editorRef.current.getCurrentView());
-      console.log('Edit mode:', editorRef.current.getCurrentMode());
+      
+      // Simple direct calls
       try {
-        console.log('Current content:', editorRef.current.getCurrentContent());
-      } catch (e) {
-        console.error('Error accessing editor content:', e);
+        console.log('View mode:', editorRef.current.getCurrentView());
+        console.log('Edit mode:', editorRef.current.getCurrentMode());
+        console.log('Document ID:', editorRef.current.getDocumentId());
+        console.log('Storage key:', editorRef.current.getStorageKey());
+        
+        const content = editorRef.current.getCurrentContent();
+        console.log('Content length:', content.content.length);
+        console.log('Content first 50 chars:', content.content.substring(0, 50) + '...');
+      } catch (error) {
+        console.error('Error accessing editor state:', error);
       }
+      
       console.groupEnd();
     } else {
-      console.error('Editor reference not available - critical error');
+      console.error('Editor reference not available');
     }
   };
 
@@ -141,48 +204,147 @@ function App() {
     setDebugMode(!debugMode);
   };
   
-  const clearLocalStorageAndReset = () => {
-    // Clear localStorage
-    try {
-      localStorage.removeItem('demo-content:content');
-    } catch (error) {
-      console.error('Error clearing localStorage:', error);
-    }
-    
-    // Properly destroy and clean up any Crepe instances or menu elements
-    if (editorRef.current?.getCrepeInstance) {
-      const crepe = editorRef.current.getCrepeInstance();
-      if (crepe) {
-        try {
-          crepe.destroy();
-          // Also clean up any orphaned menu elements that might be outside the editor
-          document.querySelectorAll('.milkdown-menu').forEach(el => {
+  const resetEditor = () => {
+    // Use the enhanced reset API to clear all editor storage
+    if (editorRef.current) {
+      try {
+        // Reset editor (clear content and all storage)
+        editorRef.current.reset({
+          clearContent: true,
+          clearCurrentStorage: true,
+          clearAllStorage: true,
+          resetToDefaultDocument: true // Use the new option to reset document ID
+        });
+        
+        console.log("Reset completed");
+        
+        // Clean up any orphaned menu elements
+        document.querySelectorAll('.milkdown-menu').forEach(el => {
+          try {
             document.body.removeChild(el);
+          } catch (err) {
+            console.error("Error removing menu element:", err);
+          }
+        });
+        
+        // Load default.md
+        setIsLoading(true);
+        fetch(`${process.env.PUBLIC_URL}/content/default.md`)
+          .then(response => {
+            if (response.ok) {
+              return response.text();
+            } else {
+              console.error("Failed to load default.md");
+              return ""; // Empty string if file not found
+            }
+          })
+          .then(content => {
+            if (content) {
+              // First update our state so component gets the content
+              setMarkdown(content);
+              
+              // Use setContent API with document ID
+              // No need for setTimeout, just need to make sure editor is initialized first
+              setIsLoading(false);
+              requestAnimationFrame(() => {
+                if (editorRef.current) {
+                  // Use empty string if content is falsy
+                  const contentToLoad = content || '';
+                  try {
+                    // Ensure editor ref is ready before calling methods
+                    setTimeout(() => {
+                      // Load default content
+                      editorRef.current.loadDocument(contentToLoad, "default");
+                      console.log("Default content loaded successfully");
+                    }, 50);
+                  } catch (error) {
+                    console.error("Error loading default content:", error);
+                  }
+                }
+              });
+            } else {
+              setIsLoading(false);
+            }
+          })
+          .catch(error => {
+            console.error("Error loading default content:", error);
+            setIsLoading(false);
           });
-        } catch (e) {
-          console.error("Error cleaning up Crepe:", e);
+          
+      } catch (error) {
+        console.error('Error resetting editor:', error);
+      }
+    } else {
+      console.error('Editor reset method not available');
+      
+      // Fallback to manual cleanup
+      try {
+        // Clear all localStorage with editor or demo-content prefix
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('editor:') || key.startsWith('demo-content:'))) {
+            keysToRemove.push(key);
+          }
         }
+        
+        // Remove all found keys
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log(`Cleared ${keysToRemove.length} editor storage keys`);
+        
+        // Force reload to get the default content
+        window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
+      } catch (e) {
+        console.error("Error in fallback cleanup:", e);
       }
     }
-    
-    // Reset with empty string (shows placeholder)
-    setMarkdown('');
   };
 
   const loadSaved = () => {
-    const componentsKey = 'demo-content';
-    const contentKey = `${componentsKey}:content`;
-    
     try {
-      const saved = localStorage.getItem(contentKey);
+      // Find all keys with editor prefix
+      const keysToLoad = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('editor:')) {
+          keysToLoad.push(key);
+        }
+      }
       
-      if (saved) {
-        // Reset the editor with saved content
-        if (editorRef.current?.reset) {
-          editorRef.current.reset(saved);
-          console.log('Content loaded from localStorage');
-        } else {
-          console.error('Editor reset method not available');
+      // Check old format key as well
+      const oldContentKey = `demo-content:content`;
+      const oldContent = localStorage.getItem(oldContentKey);
+      if (oldContent) {
+        keysToLoad.push(oldContentKey);
+      }
+      
+      if (keysToLoad.length > 0) {
+        // Display the first found document
+        const firstKey = keysToLoad[0];
+        const content = localStorage.getItem(firstKey);
+        
+        if (content) {
+          console.log(`Loading content from ${firstKey}`);
+          
+          // Use document ID from storage key
+          const docId = firstKey.startsWith('editor:') ? 
+            firstKey.substring(7) : // Remove 'editor:' prefix
+            'imported-document';
+            
+          // Use loadDocument API if available
+          if (editorRef.current?.loadDocument) {
+            editorRef.current.loadDocument(content, docId);
+            console.log(`Content loaded using loadDocument API for ${docId}`);
+          } else {
+            // Fallback to setContent
+            if (editorRef.current?.setContent) {
+              editorRef.current.setContent(content);
+              console.log('Content loaded using setContent fallback');
+            } else {
+              console.error('No content loading method available');
+              setMarkdown(content); // Direct state update as last resort
+            }
+          }
         }
       } else {
         console.log('No saved content found');
@@ -210,21 +372,44 @@ function App() {
             onChange={(e) => {
               const file = e.target.files[0];
               if (file) {
+                setIsLoading(true);
+                
                 // Read the file
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                  // Set content directly
-                  setMarkdown(event.target.result);
+                  try {
+                    const docId = file.name || 'imported-document';
+                    console.log(`LOADING FILE: ${docId}`);
+                    
+                    // Update local state first
+                    setMarkdown(event.target.result);
+                    
+                    // Wait for the next frame to ensure ref is available
+                    setTimeout(() => {
+                      // Direct approach - call loadDocument method
+                      if (editorRef.current) {
+                        console.log('Loading content into editor with document ID:', docId);
+                        editorRef.current.loadDocument(event.target.result, docId);
+                      } else {
+                        console.error('Editor ref not available');
+                      }
+                    }, 50);
+                  } catch (error) {
+                    console.error('Error loading document:', error);
+                  } finally {
+                    setIsLoading(false);
+                  }
                 };
                 
                 reader.onerror = (error) => {
                   console.error('Error reading file:', error);
+                  setIsLoading(false);
                 };
                 
-                // Read the file as text
+                // Read file as text
                 reader.readAsText(file);
                 
-                // Reset the input so selecting the same file again still triggers onChange
+                // Reset input for future selections
                 e.target.value = '';
               }
             }}
@@ -235,21 +420,15 @@ function App() {
           </button>
           
           <button onClick={() => {
-            // Always get the current markdown directly from Crepe - simplest approach
-            if (editorRef.current?.getCrepeInstance) {
-              const crepe = editorRef.current.getCrepeInstance();
-              if (crepe) {
-                try {
-                  // Get the content from crepe
-                  const markdown = crepe.getMarkdown();
-                  console.log("Content at save:", markdown.substring(0, 50));
-                  handleSave(markdown);
-                } catch (e) {
-                  console.error("Error getting markdown from editor:", e);
-                  if (handleError) handleError(new Error(`Failed to get content from editor: ${e.message}`));
-                }
-              } else {
-                console.error("No Crepe instance available");
+            // Always get the current markdown directly from component's API
+            if (editorRef.current?.getCurrentContent) {
+              try {
+                // Get the content using public API - more reliable than direct access to Crepe
+                const markdown = editorRef.current.getCurrentContent();
+                handleSave(markdown);
+              } catch (e) {
+                console.error("Error getting markdown from editor:", e);
+                if (handleError) handleError(new Error(`Failed to get content from editor: ${e.message}`));
               }
             } else {
               console.error("Editor reference not available");
@@ -270,14 +449,15 @@ function App() {
           <SemanticComposer
             ref={editorRef}
             initialValue={markdown}
+            initialDocumentId="default"
             onChange={handleChange}
             onSave={handleSave}
             onError={handleError}
             theme={theme}
             width="100%"
-            debug={debugMode}
+            debug={true} /* Force debug on to see all logs */
             autoSaveInterval={5000}
-            storageKey="demo-content"
+            storageKeyPrefix="editor"
           />
         )}
         
@@ -322,50 +502,36 @@ function App() {
               {debugMode ? 'Debug Mode: ON' : 'Debug Mode: OFF'}
             </button>
             <button 
-              onClick={clearLocalStorageAndReset}
-              style={{ padding: '8px 12px', background: '#ff5722', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              Clear & Reset
-            </button>
-            <button 
-              onClick={() => {
-                // Clear all localStorage and force a hard reload
-                localStorage.clear();
-                console.log('Cleared all localStorage');
-                // This does a complete reload bypassing the cache
-                window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
-              }}
+              onClick={resetEditor}
               style={{ padding: '8px 12px', background: '#d32f2f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
-              Force Reload
+              Reset Editor
             </button>
             <button 
               onClick={() => {
-                console.group("Direct Content Test");
-                if (editorRef.current) {
-                  // Only test direct editor access - React state is not a source of truth
-                  try {
-                    console.log("getCurrentContent():", editorRef.current.getCurrentContent());
-                  } catch (e) {
-                    console.error("Error accessing editor content:", e);
-                  }
-                  
-                  if (editorRef.current.getCrepeInstance) {
-                    const crepe = editorRef.current.getCrepeInstance();
-                    if (crepe) {
-                      try {
-                        console.log("Direct getMarkdown():", crepe.getMarkdown());
-                      } catch (e) {
-                        console.error("Error accessing Crepe instance:", e);
-                      }
-                    } else {
-                      console.error("No Crepe instance available - critical error");
+                console.group("Document Content Test");
+                
+                // Use setTimeout to ensure ref is ready
+                setTimeout(() => {
+                  if (editorRef.current) {
+                    try {
+                      // Get content safely
+                      const result = editorRef.current.getCurrentContent();
+                      console.log("Content:", result.content.substring(0, 50) + "...");
+                      console.log("Document ID:", result.documentId);
+                      
+                      // Get other info
+                      console.log("Editor view:", editorRef.current.getCurrentView());
+                      console.log("Editor mode:", editorRef.current.getCurrentMode());
+                      console.log("Storage key:", editorRef.current.getStorageKey());
+                    } catch (error) {
+                      console.error("Error accessing editor:", error);
                     }
+                  } else {
+                    console.error("Editor reference not available");
                   }
-                } else {
-                  console.error("No editor reference available - critical error");
-                }
-                console.groupEnd();
+                  console.groupEnd();
+                }, 50);
               }}
               style={{ padding: '8px 12px', background: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
