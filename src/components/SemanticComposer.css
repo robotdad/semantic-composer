@@ -203,6 +203,7 @@ h1[data-milkdown-node], h2[data-milkdown-node], h3[data-milkdown-node],
   border: none;
   resize: none;
   outline: none;
+  overflow: hidden; /* Remove scrollbar */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
   font-size: 16px !important;
   line-height: 1.6 !important;
