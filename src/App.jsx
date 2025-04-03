@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     // Only try to load default.md if no saved content
     if (!savedContent) {
-      fetch('/content/default.md')
+      fetch(`${process.env.PUBLIC_URL}/content/default.md`)
         .then(response => {
           if (response.ok) {
             return response.text();
