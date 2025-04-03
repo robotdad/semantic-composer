@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
-import SemanticComposer from './components/SemanticComposer';
+import { SemanticComposer } from './components';
 import { DocumentToLoad, SemanticComposerRef } from './types';
 
 function App() {
@@ -10,7 +10,6 @@ function App() {
   
   // Initial state setup - simple
   const [markdown, setMarkdown] = useState<string>(savedContent || '');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [debugMode, setDebugMode] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [documentToLoad, setDocumentToLoad] = useState<DocumentToLoad | null>(null); // Track document to be loaded
@@ -356,12 +355,10 @@ function App() {
     }
   };
 
-  const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
-  };
+  // Theme is now handled by Fluent UI
 
   return (
-    <div className="app" data-theme={theme}>
+    <div className="app">
       <header className="app-header">
         <h1>Semantic Composer Demo</h1>
         <div className="action-buttons">
@@ -438,9 +435,7 @@ function App() {
             }
           }}>Save</button>
           
-          <button onClick={toggleTheme}>
-            {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
-          </button>
+          {/* Theme toggle button removed */}
         </div>
       </header>
       <main className="app-main">
@@ -456,11 +451,13 @@ function App() {
             onChange={handleChange}
             onSave={handleSave}
             onError={handleError}
-            theme={theme}
             width="100%"
+            appearance="outline"
+            size="medium"
             debug={true} /* Force debug on to see all logs */
             autoSaveInterval={5000}
             storageKeyPrefix="editor"
+            useFluentProvider={true}
           />
         )}
         

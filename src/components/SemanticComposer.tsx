@@ -1,32 +1,70 @@
-import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle, RefObject } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Crepe } from '@milkdown/crepe';
-import { FiEdit, FiEye, FiType, FiCode, FiSave, FiDownload } from 'react-icons/fi';
+import { 
+  Button, 
+  Tooltip, 
+  FluentProvider,
+  mergeClasses
+} from '@fluentui/react-components';
+import {
+  Edit24Regular,
+  Eye24Regular,
+  TextFont24Regular,
+  Code24Regular,
+  Save24Regular, 
+  ArrowDownload24Regular
+} from '@fluentui/react-icons';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
-import './SemanticComposer.css';
-import { SemanticComposerProps, SemanticComposerRef, EditorView, EditorMode } from '../types';
+import './SemanticComposer.css'; // Load the entire CSS file with all Milkdown overrides
+import { useStyles } from './SemanticComposer.styles';
+import { 
+  SemanticComposerProps, 
+  SemanticComposerRef, 
+  EditorView, 
+  EditorMode,
+  EditorSize,
+  EditorAppearance 
+} from '../types';
 
 const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>((props, ref) => {
   const {
+    // Core functionality
     initialValue = '',
     initialDocumentId = 'default',
     defaultMode = 'edit',
     defaultView = 'rich',
+    
+    // Event handlers
     onChange,
     onSave,
     onModeChange,
     onViewChange,
     onError,
-    theme = 'light',
+    
+    // Visual customization
     width = '100%',
+    appearance = 'outline',
+    size = 'medium',
+    
+    // Behavior customization
     placeholder = 'Start writing...',
     readOnly = false,
     autoFocus = true,
     spellCheck = true,
     autoSaveInterval = 5000,
+    
+    // Advanced options
     debug = false,
     storageKeyPrefix = 'editor',
+    
+    // Fluent UI integration
+    useFluentProvider = true,
+    fluentProviderProps = {},
   } = props;
+  
+  // Initialize Fluent styles
+  const styles = useStyles();
   
   // Make a consistent storage key format
   const makeStorageKey = (docId: string): string => `${storageKeyPrefix}:${docId}`;
@@ -639,10 +677,15 @@ const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>(
     if (onSave) onSave(contentToSave, documentId);
   }, [content, onSave, debug, onError, documentId, view]);
     
-  // Apply theme
+  // Add data-theme for original CSS variables
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
+    if (editorRef.current) {
+      const root = editorRef.current.closest(".semantic-composer");
+      if (root) {
+        root.setAttribute('data-theme', 'light');
+      }
+    }
+  }, []);
   
   // React to external initialValue changes
   useEffect(() => {
@@ -739,89 +782,147 @@ const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>(
     };
   }, [handleSave]);
   
-  return (
-    <div className="semantic-composer" data-theme={theme} style={{ width }}>
-      <div className="composer-toolbar">
+  // Get appropriate style class based on appearance
+  const getAppearanceClass = useCallback(() => {
+    switch (appearance) {
+      case 'underline':
+        return styles.underline;
+      case 'filled-darker':
+        return styles.filledDarker;
+      case 'filled-lighter':
+        return styles.filledLighter;
+      case 'outline':
+      default:
+        return styles.outline;
+    }
+  }, [appearance, styles]);
+
+  // Get appropriate size class
+  const getSizeClass = useCallback(() => {
+    switch (size) {
+      case 'small':
+        return styles.small;
+      case 'large':
+        return styles.large;
+      case 'medium':
+      default:
+        return styles.medium;
+    }
+  }, [size, styles]);
+
+  // Handle download action
+  const handleDownload = useCallback(() => {
+    try {
+      // Get current content from appropriate source
+      let currentContent = '';
+      if (view === 'rich' && crepeRef.current) {
+        currentContent = crepeRef.current.getMarkdown();
+        // Clean up <br> tags when exporting from rich mode
+        currentContent = cleanupBrTags(currentContent);
+      } else if (view === 'raw') {
+        // Raw mode already has clean content
+        currentContent = content;
+      } else {
+        // Read mode - use content from state but ensure it's clean
+        currentContent = cleanupBrTags(content);
+      }
+      
+      // Create blob and download link
+      const blob = new Blob([currentContent], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'document.md';
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (error) {
+      if (debug) console.error('Error exporting markdown:', error);
+      if (onError) onError(new Error(`Error exporting markdown: ${(error as Error).message}`));
+    }
+  }, [view, crepeRef, content, debug, onError, cleanupBrTags]);
+
+  // Combine styles for the component
+  const rootClassName = mergeClasses(
+    styles.root,
+    getAppearanceClass(),
+    getSizeClass()
+  );
+
+  // The editor component
+  const editorComponent = (
+    <div className={mergeClasses(rootClassName, "semantic-composer")} style={{ width }}>
+      <div className={mergeClasses(styles.toolbar, "composer-toolbar")}>
         {/* Empty space on the left */}
-        <div className="toolbar-spacer"></div>
+        <div className={mergeClasses(styles.toolbarSpacer, "toolbar-spacer")}></div>
         
         {/* Mode toggles & actions on the right */}
-        <div className="toolbar-actions" style={{ marginLeft: 'auto' }}>
-          <button className="toolbar-button icon-button" onClick={toggleMode} title={mode === 'edit' ? 'Switch to Read mode' : 'Switch to Edit mode'}>
-            {mode === 'edit' ? <FiEye /> : <FiEdit />}
-          </button>
+        <div className={mergeClasses(styles.toolbarActions, "toolbar-actions")}>
+          <Tooltip content={mode === 'edit' ? 'Switch to Read mode' : 'Switch to Edit mode'} relationship="label">
+            <Button 
+              icon={mode === 'edit' ? <Eye24Regular /> : <Edit24Regular />}
+              appearance="subtle" 
+              onClick={toggleMode}
+              aria-label={mode === 'edit' ? 'Switch to Read mode' : 'Switch to Edit mode'}
+            />
+          </Tooltip>
           
           {mode === 'edit' && (
-            <button className="toolbar-button icon-button" onClick={toggleView} title={view === 'rich' ? 'Switch to Raw markdown' : 'Switch to Rich editor'}>
-              {view === 'rich' ? <FiCode /> : <FiType />}
-            </button>
+            <Tooltip content={view === 'rich' ? 'Switch to Raw markdown' : 'Switch to Rich editor'} relationship="label">
+              <Button 
+                icon={view === 'rich' ? <Code24Regular /> : <TextFont24Regular />}
+                appearance="subtle" 
+                onClick={toggleView}
+                aria-label={view === 'rich' ? 'Switch to Raw markdown' : 'Switch to Rich editor'}
+              />
+            </Tooltip>
           )}
           
-          <button className="toolbar-button icon-button" onClick={handleSave} title="Save content">
-            <FiSave />
-          </button>
+          <Tooltip content="Save content" relationship="label">
+            <Button 
+              icon={<Save24Regular />}
+              appearance="subtle" 
+              onClick={handleSave}
+              aria-label="Save content"
+            />
+          </Tooltip>
           
-          <button 
-            className="toolbar-button icon-button" 
-            onClick={() => {
-              try {
-                // Get current content from appropriate source
-                let currentContent = '';
-                if (view === 'rich' && crepeRef.current) {
-                  currentContent = crepeRef.current.getMarkdown();
-                  // Clean up <br> tags when exporting from rich mode
-                  currentContent = cleanupBrTags(currentContent);
-                } else if (view === 'raw') {
-                  // Raw mode already has clean content
-                  currentContent = content;
-                } else {
-                  // Read mode - use content from state but ensure it's clean
-                  currentContent = cleanupBrTags(content);
-                }
-                
-                // Create blob and download link
-                const blob = new Blob([currentContent], { type: 'text/markdown' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'document.md';
-                document.body.appendChild(a);
-                a.click();
-                
-                // Clean up
-                setTimeout(() => {
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }, 100);
-              } catch (error) {
-                if (debug) console.error('Error exporting markdown:', error);
-                if (onError) onError(new Error(`Error exporting markdown: ${(error as Error).message}`));
-              }
-            }} 
-            title="Export markdown"
-          >
-            <FiDownload />
-          </button>
+          <Tooltip content="Export markdown" relationship="label">
+            <Button 
+              icon={<ArrowDownload24Regular />}
+              appearance="subtle" 
+              onClick={handleDownload}
+              aria-label="Export markdown"
+            />
+          </Tooltip>
           
           {/* Word count display */}
-          <div className="toolbar-info">
+          <div className={mergeClasses(styles.toolbarInfo, "toolbar-info")}>
             {typeof content === 'string' ? content.split(/\s+/).filter(Boolean).length : 0} words
           </div>
         </div>
       </div>
       
-      <div className="editor-content">
+      <div className={mergeClasses(styles.editorContent, "editor-content")}>
         {view === 'rich' ? (
           // Single Milkdown instance for both edit and read modes
           <div 
             ref={editorRef} 
-            className={`milkdown-editor-wrapper ${mode === 'read' ? 'read-only' : ''}`}
-            style={{ minHeight: '200px' }} // Ensure enough space for editor to render
+            className={mergeClasses(
+              styles.milkdownWrapper,
+              "milkdown-editor-wrapper",
+              mode === 'read' ? 'read-only' : ''
+            )}
           />
         ) : mode === 'edit' ? (
           // Raw mode (only available in edit mode)
           <textarea
-            className="raw-editor"
+            className={mergeClasses(styles.rawEditor, "raw-editor")}
             value={typeof content === 'string' ? content : ''}
             onChange={handleRawChange}
             placeholder={placeholder}
@@ -829,7 +930,6 @@ const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>(
             autoFocus={autoFocus}
             readOnly={readOnly}
             style={{ 
-              minHeight: '200px',
               height: (typeof content === 'string' ? content.split('\n').length : 1) * 1.6 + 'em' 
             }}
           />
@@ -837,6 +937,14 @@ const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>(
       </div>
     </div>
   );
+
+  // Return the editor with or without FluentProvider based on useFluentProvider prop
+  return useFluentProvider ? (
+    <FluentProvider {...fluentProviderProps}>
+      {editorComponent}
+    </FluentProvider>
+  ) : editorComponent;
 });
 
-export default SemanticComposer;
+// Export as a named export for consistency with barrel file
+export { SemanticComposer };
