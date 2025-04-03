@@ -2,6 +2,8 @@
 
 A markdown editor component built with React and Milkdown/Crepe, designed for easy integration into various web applications.
 
+**[🚀 Try it live!](https://robotdad.github.io/semantic-composer)**
+
 ## Features
 
 - Toggle between Edit and Read modes
