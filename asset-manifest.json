@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/semantic-composer/static/css/main.76a113d1.css",
-    "main.js": "/semantic-composer/static/js/main.7995a2fa.js",
+    "main.js": "/semantic-composer/static/js/main.37eddcff.js",
     "static/js/864.9e4f0ba3.chunk.js": "/semantic-composer/static/js/864.9e4f0ba3.chunk.js",
     "static/js/7698.63764591.chunk.js": "/semantic-composer/static/js/7698.63764591.chunk.js",
     "static/js/9472.99c0dad3.chunk.js": "/semantic-composer/static/js/9472.99c0dad3.chunk.js",
@@ -196,7 +196,7 @@
     "static/media/KaTeX_Size3-Regular.woff2": "/semantic-composer/static/media/KaTeX_Size3-Regular.e1951519f6f0596f7356.woff2",
     "index.html": "/semantic-composer/index.html",
     "main.76a113d1.css.map": "/semantic-composer/static/css/main.76a113d1.css.map",
-    "main.7995a2fa.js.map": "/semantic-composer/static/js/main.7995a2fa.js.map",
+    "main.37eddcff.js.map": "/semantic-composer/static/js/main.37eddcff.js.map",
     "864.9e4f0ba3.chunk.js.map": "/semantic-composer/static/js/864.9e4f0ba3.chunk.js.map",
     "7698.63764591.chunk.js.map": "/semantic-composer/static/js/7698.63764591.chunk.js.map",
     "9472.99c0dad3.chunk.js.map": "/semantic-composer/static/js/9472.99c0dad3.chunk.js.map",
@@ -332,6 +332,6 @@
   },
   "entrypoints": [
     "static/css/main.76a113d1.css",
-    "static/js/main.7995a2fa.js"
+    "static/js/main.37eddcff.js"
   ]
 }
