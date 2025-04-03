@@ -16,7 +16,9 @@ A markdown editor component built with React and Milkdown/Crepe, designed for ea
   - Links and images
 - Document management with localStorage persistence
 - Export markdown content to file
-- Light and dark theme support
+- Fluent UI integration
+- Responsive design with different sizing options
+- Various appearance styles
 - Word count display
 - Keyboard shortcuts (Ctrl+S/Cmd+S to save)
 
@@ -25,7 +27,11 @@ A markdown editor component built with React and Milkdown/Crepe, designed for ea
 ### Installation
 
 ```bash
+# Install dependencies
 npm install
+
+# For Fluent UI integration
+npm install @fluentui/react-components @fluentui/react-icons
 ```
 
 ### Running the Demo
@@ -55,9 +61,11 @@ The development server will start at http://localhost:3000 where you can see the
 
 ## Usage
 
+### Basic Usage
+
 ```tsx
 import React, { useRef } from 'react';
-import SemanticComposer from './components/SemanticComposer';
+import { SemanticComposer } from './components';
 import type { SemanticComposerRef } from './types';
 
 function MyApp() {
@@ -95,10 +103,12 @@ function MyApp() {
         onChange={handleChange}
         onSave={handleSave}
         onError={(error) => console.error('Editor error:', error)}
-        theme="light" // or "dark"
         width="100%"
+        appearance="outline" // or "underline", "filled-darker", "filled-lighter"
+        size="medium" // or "small", "large"
         autoSaveInterval={5000} // Set to 0 to disable autosave
         storageKeyPrefix="editor" // Prefix for localStorage keys
+        useFluentProvider={true} // Wrap with FluentProvider
       />
     </div>
   );
@@ -118,8 +128,9 @@ function MyApp() {
 | onError | function | undefined | Callback for error handling |
 | onModeChange | function | undefined | Callback when mode changes |
 | onViewChange | function | undefined | Callback when view changes |
-| theme | 'light' \| 'dark' | 'light' | Editor theme |
 | width | string \| number | '100%' | Editor width |
+| appearance | 'outline' \| 'underline' \| 'filled-darker' \| 'filled-lighter' | 'outline' | Visual style of the component |
+| size | 'small' \| 'medium' \| 'large' | 'medium' | Size variant of the component |
 | placeholder | string | 'Start writing...' | Placeholder text for empty editor |
 | readOnly | boolean | false | Set editor to read-only mode |
 | autoFocus | boolean | true | Auto-focus on load |
@@ -127,6 +138,8 @@ function MyApp() {
 | autoSaveInterval | number | 5000 | Auto-save interval in ms (0 to disable) |
 | debug | boolean | false | Enable debug logging |
 | storageKeyPrefix | string | 'editor' | Prefix for localStorage keys |
+| useFluentProvider | boolean | true | Wrap component with FluentProvider |
+| fluentProviderProps | object | {} | Props to pass to FluentProvider |
 
 ## Component API
 
@@ -164,3 +177,54 @@ The component maintains document content in localStorage using the following pat
 - Storage keys are created as `${storageKeyPrefix}:${documentId}`
 - The current document ID is tracked in `${storageKeyPrefix}:current-document-id`
 - The `loadDocument()` method provides the easiest way to switch between documents
+
+## Fluent UI Integration
+
+### Dialog Component
+
+The package includes a `SemanticComposerDialog` component for modal editing experiences:
+
+```tsx
+import { SemanticComposerDialog } from './components';
+
+function MyApp() {
+  const [open, setOpen] = useState(false);
+  
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>Edit Content</button>
+      
+      <SemanticComposerDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Edit Document"
+        initialContent="# My Document"
+        appearance="filled-lighter"
+        onSave={(content) => {
+          console.log('Saved:', content);
+          // Process saved content
+        }}
+      />
+    </>
+  );
+}
+```
+
+### Styling Options
+
+The component comes with multiple appearance options:
+
+- `outline`: Standard bordered style (default)
+- `underline`: Bottom border only
+- `filled-darker`: Darker background fill
+- `filled-lighter`: Lighter background fill
+
+And size variants:
+
+- `small`: Compact view with smaller text
+- `medium`: Standard size (default)
+- `large`: Larger text and spacing
+
+### Theming
+
+The component inherits themes from your Fluent UI theme context. If `useFluentProvider` is true (default), it creates its own FluentProvider. To use your application's theme context, set `useFluentProvider={false}`.

@@ -237,3 +237,10 @@ export const SemanticComposerDialog = ({
    - Using Fluent UI's theme context exclusively
    - Removed theme prop from components
    - Updated documentation to reflect changes
+   
+10. ✅ Documentation updates:
+    - Updated README.md with Fluent UI integration information
+    - Added dialog component example
+    - Documented styling options
+    - Updated component props table
+    - Fixed import examples to use barrel file
