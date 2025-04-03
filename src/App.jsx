@@ -149,6 +149,22 @@ function App() {
       console.error('Error clearing localStorage:', error);
     }
     
+    // Properly destroy and clean up any Crepe instances or menu elements
+    if (editorRef.current?.getCrepeInstance) {
+      const crepe = editorRef.current.getCrepeInstance();
+      if (crepe) {
+        try {
+          crepe.destroy();
+          // Also clean up any orphaned menu elements that might be outside the editor
+          document.querySelectorAll('.milkdown-menu').forEach(el => {
+            document.body.removeChild(el);
+          });
+        } catch (e) {
+          console.error("Error cleaning up Crepe:", e);
+        }
+      }
+    }
+    
     // Reset with empty string (shows placeholder)
     setMarkdown('');
   };
@@ -313,10 +329,11 @@ function App() {
             </button>
             <button 
               onClick={() => {
-                // Clear all localStorage and reload page
+                // Clear all localStorage and force a hard reload
                 localStorage.clear();
                 console.log('Cleared all localStorage');
-                window.location.reload();
+                // This does a complete reload bypassing the cache
+                window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
               }}
               style={{ padding: '8px 12px', background: '#d32f2f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
