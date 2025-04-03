@@ -252,7 +252,6 @@ function App() {
           </div>
         ) : (
           <SemanticComposer
-            key={`editor-${Date.now()}`} 
             ref={editorRef}
             initialValue={markdown}
             onChange={handleChange}
