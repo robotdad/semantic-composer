@@ -5,9 +5,7 @@ import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
 import './SemanticComposer.css';
 
-/**
- * Semantic Composer - A markdown editor component
- */
+
 /**
  * Semantic Composer - A markdown editor component with rich/raw editing modes
  * 
@@ -82,7 +80,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         try {
           return crepeRef.current.getMarkdown();
         } catch (error) {
-          console.error('Error getting content from editor:', error);
+          if (debug) console.error('Error getting content from editor:', error);
           throw new Error(`Failed to get content from editor: ${error.message}`);
         }
       } else if (view === 'raw') {
@@ -112,7 +110,7 @@ const SemanticComposer = forwardRef((props, ref) => {
             editorRef.current.innerHTML = '';
           }
         } catch (error) {
-          console.error('Editor cleanup error:', error);
+          if (debug) console.error('Editor cleanup error:', error);
           if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
         }
       }
@@ -132,38 +130,6 @@ const SemanticComposer = forwardRef((props, ref) => {
     // Toggle mode
     toggleEditorMode: () => toggleMode(),
     
-    // Legacy reset function - now just calls the set content implementation directly
-    reset: (newContent) => {
-      console.log('reset() called - using setContent implementation');
-      
-      // Same implementation as setContent to avoid circular reference
-      // 1. Clean up any HTML artifacts 
-      const cleanedContent = typeof newContent === 'string' ? 
-        cleanupBrTags(newContent) : '';
-      
-      // 2. If in rich mode and editor exists, destroy it
-      if (view === 'rich' && crepeRef.current) {
-        try {
-          // Destroy current instance
-          crepeRef.current.destroy();
-          crepeRef.current = null;
-          
-          // Clear container
-          if (editorRef.current) {
-            editorRef.current.innerHTML = '';
-          }
-        } catch (error) {
-          console.error('Editor cleanup error:', error);
-          if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
-        }
-      }
-      
-      // 3. Update the React state with new content
-      setContent(cleanedContent);
-      
-      return true; // Success
-    },
-    
     // Get the current storage key being used
     getStorageKey: () => storageKey
   }));
@@ -178,7 +144,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         
         if (debug) {
           console.log('Initializing editor with content:', 
-                     safeInitialValue ? safeInitialValue.substring(0, 30) + '...' : 'empty');
+            safeInitialValue ? safeInitialValue.substring(0, 30) + '...' : 'empty');
         }
         
         // Only log in debug mode to reduce console noise
@@ -217,12 +183,12 @@ const SemanticComposer = forwardRef((props, ref) => {
             }
           })
           .catch(error => {
-            console.error('Editor creation failed:', error);
+            if (debug) console.error('Editor creation failed:', error);
             if (onError) onError(new Error(`Editor creation failed: ${error.message}`));
             crepeRef.current = null;
           });
       } catch (error) {
-        console.error('Editor initialization failed:', error);
+        if (debug) console.error('Editor initialization failed:', error);
         if (onError) onError(new Error(`Editor initialization failed: ${error.message}`));
       }
     }
@@ -233,7 +199,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         try {
           crepeRef.current.destroy();
         } catch (error) {
-          console.error('Editor cleanup error:', error);
+          if (debug) console.error('Editor cleanup error:', error);
         } finally {
           crepeRef.current = null;
         }
@@ -246,7 +212,7 @@ const SemanticComposer = forwardRef((props, ref) => {
           localStorage.removeItem(contentKey);
           if (debug) console.log(`Cleaned up localStorage key: ${contentKey}`);
         } catch (error) {
-          console.error('Error cleaning localStorage on unmount:', error);
+          if (debug) console.error('Error cleaning localStorage on unmount:', error);
         }
       }
     };
@@ -301,7 +267,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         
         return; // Exit early to avoid setting mode directly
       } catch (error) {
-        console.error('Error transitioning from raw to read:', error);
+        if (debug) console.error('Error transitioning from raw to read:', error);
         if (onError) onError(new Error(`Error transitioning from raw to read: ${error.message}`));
       }
     }
@@ -322,7 +288,7 @@ const SemanticComposer = forwardRef((props, ref) => {
             }
           }
         } catch (error) {
-          console.error('Error getting content during mode toggle:', error);
+          if (debug) console.error('Error getting content during mode toggle:', error);
         }
         
         // Now update mode and readonly state
@@ -391,7 +357,7 @@ const SemanticComposer = forwardRef((props, ref) => {
               console.log(`Saved content to ${contentKey} for raw mode transition`);
             }
           } catch (error) {
-            console.error('Error saving content during view toggle:', error);
+            if (debug) console.error('Error saving content during view toggle:', error);
           }
           
           if (debug) {
@@ -409,7 +375,7 @@ const SemanticComposer = forwardRef((props, ref) => {
           editorRef.current.innerHTML = '';
         }
       } catch (error) {
-        console.error('Error switching to raw view:', error);
+        if (debug) console.error('Error switching to raw view:', error);
         if (onError) onError(new Error(`Error switching to raw view: ${error.message}`));
       }
     }
@@ -419,15 +385,8 @@ const SemanticComposer = forwardRef((props, ref) => {
       // be used to initialize the editor in the useEffect
       
       if (debug) {
-        console.log('RAW TO RICH - CONTENT FROM STATE:');
-        console.log(content);
-        console.log('HAS <br> TAGS:', content.includes('<br'));
-        console.log('POSITION OF <br>:', content.indexOf('<br'));
-      }
-      
-      if (debug) {
         console.log('Switching to rich mode with content from state:', 
-                  content ? content.substring(0, 30) + '...' : 'empty');
+          content ? content.substring(0, 30) + '...' : 'empty');
       }
     }
     
@@ -453,7 +412,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         console.log(`Raw editor change: saved to ${contentKey}`);
       }
     } catch (error) {
-      console.error('Error saving raw editor content:', error);
+      if (debug) console.error('Error saving raw editor content:', error);
     }
   };
   
@@ -473,7 +432,7 @@ const SemanticComposer = forwardRef((props, ref) => {
         console.log(`Saved content to ${contentKey}`, contentToSave.substring(0, 30) + '...');
       }
     } catch (error) {
-      console.error('Error saving content:', error);
+      if (debug) console.error('Error saving content:', error);
       if (onError) onError(new Error(`Error saving content: ${error.message}`));
     }
   }, [content, onSave, contentKey, debug, onError]);
@@ -500,7 +459,7 @@ const SemanticComposer = forwardRef((props, ref) => {
           editorRef.current.innerHTML = '';
         }
       } catch (error) {
-        console.error('Error updating content:', error);
+        if (debug) console.error('Error updating content:', error);
         if (onError) onError(new Error(`Error updating content: ${error.message}`));
       }
     }
@@ -534,7 +493,7 @@ const SemanticComposer = forwardRef((props, ref) => {
           if (debug) console.log(`Auto-saved content to ${contentKey}`);
         }
       } catch (error) {
-        console.error('Error during auto-save:', error);
+        if (debug) console.error('Error during auto-save:', error);
       }
     }, autoSaveInterval);
 
@@ -613,7 +572,7 @@ const SemanticComposer = forwardRef((props, ref) => {
                   URL.revokeObjectURL(url);
                 }, 100);
               } catch (error) {
-                console.error('Error exporting markdown:', error);
+                if (debug) console.error('Error exporting markdown:', error);
                 if (onError) onError(new Error(`Error exporting markdown: ${error.message}`));
               }
             }} 
@@ -652,10 +611,7 @@ const SemanticComposer = forwardRef((props, ref) => {
               height: (typeof content === 'string' ? content.split('\n').length : 1) * 1.6 + 'em' 
             }}
           />
-        ) : (
-          // Fallback for read mode when view is raw (should never happen after our fix)
-          <div className="raw-preview">{typeof content === 'string' ? content : ''}</div>
-        )}
+        ) : null /* Raw read mode is prevented in toggleMode */}
       </div>
     </div>
   );
