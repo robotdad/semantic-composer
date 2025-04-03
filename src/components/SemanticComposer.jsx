@@ -92,18 +92,18 @@ const SemanticComposer = forwardRef((props, ref) => {
       throw new Error('No valid editor instance available');
     },
     
-    // Toggle view
-    toggleEditorView: () => toggleView(),
-    
-    // Toggle mode
-    toggleEditorMode: () => toggleMode(),
-    
-    // Reset editor - properly resets the component state without window.reload
-    reset: (newContent) => {
-      // If editor is in rich mode, clean up existing instance
+    // CORE API: Set content - the primary method for consumers to update content
+    setContent: (newContent) => {
+      if (debug) console.log('setContent called with new content');
+      
+      // 1. Clean up any HTML artifacts 
+      const cleanedContent = typeof newContent === 'string' ? 
+        cleanupBrTags(newContent) : '';
+      
+      // 2. If in rich mode and editor exists, destroy it
       if (view === 'rich' && crepeRef.current) {
         try {
-          // Destroy current editor instance
+          // Destroy current instance
           crepeRef.current.destroy();
           crepeRef.current = null;
           
@@ -112,23 +112,56 @@ const SemanticComposer = forwardRef((props, ref) => {
             editorRef.current.innerHTML = '';
           }
         } catch (error) {
-          console.error('Editor reset error:', error);
-          if (onError) onError(new Error(`Editor reset error: ${error.message}`));
+          console.error('Editor cleanup error:', error);
+          if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
         }
       }
       
-      const safeContent = typeof newContent === 'string' ? newContent : '';
+      // 3. Update the React state with new content
+      setContent(cleanedContent);
       
-      // Update content state with new content
-      setContent(safeContent);
+      // 4. The editor will be reinitialized via useEffect with the new content
+      // This ensures a clean lifecycle: destroy → update state → reinitialize
       
-      // We no longer update localStorage here since:
-      // 1. The parent app should handle persistence
-      // 2. The auto-save mechanism will save if enabled
-      // 3. The reset function is often called after clearing localStorage
+      return true; // Success
+    },
+    
+    // Toggle view
+    toggleEditorView: () => toggleView(),
+    
+    // Toggle mode
+    toggleEditorMode: () => toggleMode(),
+    
+    // Legacy reset function - now just calls the set content implementation directly
+    reset: (newContent) => {
+      console.log('reset() called - using setContent implementation');
       
-      // If in raw mode, this will be enough
-      // If in rich mode, useEffect will re-initialize the editor
+      // Same implementation as setContent to avoid circular reference
+      // 1. Clean up any HTML artifacts 
+      const cleanedContent = typeof newContent === 'string' ? 
+        cleanupBrTags(newContent) : '';
+      
+      // 2. If in rich mode and editor exists, destroy it
+      if (view === 'rich' && crepeRef.current) {
+        try {
+          // Destroy current instance
+          crepeRef.current.destroy();
+          crepeRef.current = null;
+          
+          // Clear container
+          if (editorRef.current) {
+            editorRef.current.innerHTML = '';
+          }
+        } catch (error) {
+          console.error('Editor cleanup error:', error);
+          if (onError) onError(new Error(`Editor cleanup error: ${error.message}`));
+        }
+      }
+      
+      // 3. Update the React state with new content
+      setContent(cleanedContent);
+      
+      return true; // Success
     },
     
     // Get the current storage key being used
@@ -148,8 +181,10 @@ const SemanticComposer = forwardRef((props, ref) => {
                      safeInitialValue ? safeInitialValue.substring(0, 30) + '...' : 'empty');
         }
         
-        // IMPORTANT: log what we're initializing with
-        console.log('INIT CONTENT:', safeInitialValue?.substring(0, 30));
+        // Only log in debug mode to reduce console noise
+        if (debug) {
+          console.log('INIT CONTENT:', safeInitialValue?.substring(0, 30));
+        }
         
         // Create editor with current content from React state
         const crepe = new Crepe({
