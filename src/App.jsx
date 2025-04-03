@@ -7,45 +7,33 @@ function App() {
   const contentKey = 'demo-content:content';
   const savedContent = localStorage.getItem(contentKey);
   
-  // Initial state setup with loading indicator
-  const [markdown, setMarkdown] = useState(savedContent || 'Loading content...');
+  // Initial state setup - simple
+  const [markdown, setMarkdown] = useState(savedContent || '');
   const [theme, setTheme] = useState('light');
   const [debugMode, setDebugMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(!savedContent);
-  const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if initial default load was done
+  const [isLoading, setIsLoading] = useState(false);
   const editorRef = useRef(null);
   
-  // Load default content from file - only on first mount and if no saved content
+  // Simple default content loading
   useEffect(() => {
-    // Skip if we've already loaded content or there's saved content
-    if (initialLoadDone || savedContent) {
-      return;
+    // Only try to load default.md if no saved content
+    if (!savedContent) {
+      fetch('/content/default.md')
+        .then(response => {
+          if (response.ok) {
+            return response.text();
+          }
+          // If file not found, return null (don't throw error)
+          return null;
+        })
+        .then(content => {
+          // Only update if content was loaded successfully
+          if (content) {
+            setMarkdown(content);
+          }
+        });
     }
-    
-    setIsLoading(true);
-    fetch('/content/default.md')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Failed to load default content: ${response.status}`);
-        }
-        return response.text();
-      })
-      .then(fileContent => {
-        console.log('Loaded default content from file');
-        // Just update state - the component will initialize with this content
-        setMarkdown(fileContent);
-        setInitialLoadDone(true); // Mark initial load as complete
-      })
-      .catch(error => {
-        console.error('Error loading default content:', error);
-        // Fallback to a simple string if file can't be loaded
-        setMarkdown('# Welcome to Semantic Composer\n\nUnable to load default content. Start writing here...');
-        setInitialLoadDone(true); // Mark initial load as complete even on error
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [savedContent, initialLoadDone]);
+  }, [savedContent]);
 
   const handleChange = (value) => {
     setMarkdown(value);
@@ -154,68 +142,15 @@ function App() {
   };
   
   const clearLocalStorageAndReset = () => {
-    // Clear all keys with component prefix
-    const componentsKey = 'demo-content';
-    const keyPrefix = `${componentsKey}:`;
-    
+    // Clear localStorage
     try {
-      // Find all keys with our prefix
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith(keyPrefix)) {
-          keysToRemove.push(key);
-        }
-      }
-      
-      // Remove all matching keys
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key);
-        console.log(`Removed localStorage key: ${key}`);
-      });
+      localStorage.removeItem('demo-content:content');
     } catch (error) {
       console.error('Error clearing localStorage:', error);
-      if (handleError) handleError(new Error(`Error clearing localStorage: ${error.message}`));
     }
     
-    // Set loading state
-    setIsLoading(true);
-    
-    // Load the default content from file
-    fetch('/content/default.md')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Failed to load default content: ${response.status}`);
-        }
-        return response.text();
-      })
-      .then(fileContent => {
-        console.log('Reset: Loaded default content from file');
-        // Same approach as file loading - complete component remount
-        setInitialLoadDone(true); // Prevent default content reload
-        setMarkdown(fileContent);
-        console.log('Set state with default content, length:', fileContent.length);
-        
-        // Briefly unmount and remount the editor to ensure clean initialization
-        setIsLoading(true);
-        setTimeout(() => {
-          setIsLoading(false);
-          console.log('Editor remounted with default content');
-        }, 50);
-      })
-      .catch(error => {
-        console.error('Error loading default content:', error);
-        // Fallback to a simple string if file can't be loaded
-        const fallbackContent = '# Welcome to Semantic Composer\n\nUnable to load default content. Start writing here...';
-        setMarkdown(fallbackContent);
-        
-        if (editorRef.current?.reset) {
-          editorRef.current.reset(fallbackContent);
-        }
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    // Reset with empty string (shows placeholder)
+    setMarkdown('');
   };
 
   const loadSaved = () => {
@@ -259,57 +194,15 @@ function App() {
             onChange={(e) => {
               const file = e.target.files[0];
               if (file) {
-                // Show loading indicator
-                setIsLoading(true);
-                
                 // Read the file
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                  const fileContent = event.target.result;
-                  // Avoid excessive logging
-                  console.log(`Loaded file: ${file.name}, size: ${file.size} bytes`);
-                  
-                  // Clear any previous content from localStorage
-                  try {
-                    const componentsKey = 'demo-content';
-                    const contentKey = `${componentsKey}:content`;
-                    localStorage.removeItem(contentKey);
-                    console.log(`Cleared previous content from localStorage (${contentKey})`);
-                  } catch (error) {
-                    console.error('Error clearing localStorage:', error);
-                  }
-                  
-                  // First, destroy the whole editor by forcing a remount
-                  setIsLoading(true);
-                  
-                  // Mark default content load as done to prevent reload
-                  setInitialLoadDone(true);
-                  
-                  // Clear any previous content from localStorage
-                  try {
-                    const componentsKey = 'demo-content';
-                    const contentKey = `${componentsKey}:content`;
-                    localStorage.removeItem(contentKey);
-                    console.log(`Cleared previous content from localStorage`);
-                  } catch (error) {
-                    console.error('Error clearing localStorage:', error);
-                  }
-                  
-                  // Update the state with new content
-                  setMarkdown(fileContent);
-                  console.log('Updated state with file content, length:', fileContent.length);
-                  
-                  // Use setTimeout to ensure content is set before component is recreated
-                  setTimeout(() => {
-                    setIsLoading(false);
-                    console.log('Editor remounted with new content');
-                  }, 50);
+                  // Set content directly
+                  setMarkdown(event.target.result);
                 };
                 
                 reader.onerror = (error) => {
                   console.error('Error reading file:', error);
-                  if (handleError) handleError(new Error(`Error reading file: ${error}`));
-                  setIsLoading(false);
                 };
                 
                 // Read the file as text
