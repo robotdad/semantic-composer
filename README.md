@@ -1,6 +1,6 @@
 # Semantic Composer
 
-A markdown editor component built with React and Milkdown/Crepe, designed for easy integration into various web applications.
+A markdown editor component built with React and Milkdown, designed for easy integration into various web applications.
 
 **[🚀 Try it live!](https://robotdad.github.io/semantic-composer)**
 
@@ -32,6 +32,9 @@ npm install
 
 # For Fluent UI integration
 npm install @fluentui/react-components @fluentui/react-icons
+
+# Milkdown dependencies
+npm install @milkdown/react @milkdown/kit @milkdown/preset-commonmark @milkdown/preset-gfm @milkdown/plugin-listener @milkdown/theme-nord
 ```
 
 ### Running the Demo
@@ -156,7 +159,7 @@ When using a ref, the following methods are available:
 | toggleEditorView() | Toggle between rich and raw modes |
 | toggleEditorMode() | Toggle between edit and read modes |
 | reset(options) | Reset the editor with options for clearing content and storage |
-| getCrepeInstance() | Get the underlying Crepe instance |
+| getEditorInstance() | Get the underlying Milkdown editor instance |
 | getStorageKey() | Get the current storage key being used |
 
 ## Reset Options
@@ -228,3 +231,46 @@ And size variants:
 ### Theming
 
 The component inherits themes from your Fluent UI theme context. If `useFluentProvider` is true (default), it creates its own FluentProvider. To use your application's theme context, set `useFluentProvider={false}`.
+
+## Milkdown Integration
+
+The editor uses [Milkdown](https://milkdown.dev/), a composable and extensible markdown editor framework.
+
+### Architecture
+
+- **MilkdownEditor**: A React component that integrates Milkdown with our custom UI
+- **Editor Initialization**: Uses the official Milkdown React hooks (`useEditor`)
+- **Content Flow**: 
+  - Markdown content flows from the parent component to Milkdown
+  - Changes from Milkdown are captured and propagated back up
+  - Content is preserved when switching between Rich and Raw view modes
+
+### Extending the Editor
+
+You can extend the editor with additional Milkdown plugins:
+
+1. Add the plugins to your project:
+   ```bash
+   npm install @milkdown/plugin-table @milkdown/plugin-tooltip
+   ```
+
+2. Create a custom component that extends MilkdownEditor:
+   ```tsx
+   import { table } from '@milkdown/plugin-table';
+   import { tooltip } from '@milkdown/plugin-tooltip';
+   import { MilkdownEditor } from './components';
+
+   const EnhancedEditor = (props) => {
+     // Add custom plugins or functionality
+     const customPlugins = [table, tooltip];
+     
+     return <MilkdownEditor {...props} plugins={customPlugins} />;
+   };
+   ```
+
+### Technical Details
+
+- Uses Milkdown's React integration with `MilkdownProvider` and `useEditor` hook
+- Preserves line breaks and formatting during view transitions
+- Implements a ref-based API for external control
+- Handles content synchronization between rich and raw modes

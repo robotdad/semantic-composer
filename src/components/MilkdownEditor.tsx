@@ -1,6 +1,6 @@
-import React, { useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
 import { defaultValueCtx, Editor, rootCtx, editorViewOptionsCtx } from '@milkdown/kit/core';
-import { Milkdown, MilkdownProvider } from '@milkdown/react';
+import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
@@ -22,26 +22,50 @@ export interface MilkdownEditorRef {
   focus: () => void;
 }
 
+// Main component with forward ref to expose methods to parent
 const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>((props, ref) => {
   const { content, readOnly, onChange, placeholder, autoFocus, debug = false } = props;
-  const contentRef = useRef(content);
+  const contentRef = useRef<string>(content);
   const editorRef = useRef<any>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
   
-  // Keep track of content
+  // Update contentRef when content prop changes
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
   
-  // Initialize editor when component mounts
-  useEffect(() => {
-    if (rootRef.current && !editorRef.current) {
-      if (debug) console.log('Initializing editor with content:', content ? content.substring(0, 50) + '...' : 'empty');
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    getMarkdown: () => {
+      // Simply return the current content - this is kept in sync via listeners
+      return contentRef.current;
+    },
+    
+    setContent: (newContent: string) => {
+      if (debug) console.log('setContent called with:', newContent ? newContent.substring(0, 30) + '...' : 'empty');
       
-      const editor = Editor.make()
+      // Update content ref
+      contentRef.current = newContent;
+    },
+    
+    focus: () => {
+      try {
+        // This will be handled by the actual editor when rendered
+      } catch (error) {
+        if (debug) console.error('Error focusing editor:', error);
+      }
+    }
+  }));
+
+  // This is the actual Milkdown editor component
+  const EditorComponent = () => {
+    // Use the useEditor hook to initialize the editor
+    const editor = useEditor((root) => {
+      if (debug) console.log('Initializing editor with content:', content || '');
+      
+      return Editor.make()
         .config((ctx) => {
-          ctx.set(rootCtx, rootRef.current);
-          ctx.set(defaultValueCtx, content);
+          ctx.set(rootCtx, root);
+          ctx.set(defaultValueCtx, content || '');
           ctx.update(editorViewOptionsCtx, (prev) => ({
             ...prev,
             editable: () => !readOnly
@@ -51,129 +75,51 @@ const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>((props
         .use(commonmark)
         .use(gfm)
         .use(listener);
+    }, [content, readOnly]);
+
+    // Add a listener to observe changes when editor DOM changes
+    // This is a simple approach to capture content changes
+    useEffect(() => {
+      // Wait for Milkdown to be rendered
+      const milkdownElement = document.querySelector('.milkdown');
+      if (!milkdownElement) return;
       
-      editor.create().then((instance) => {
-        editorRef.current = instance;
-        
-        // Set up listener for content changes
+      const observer = new MutationObserver(() => {
         if (onChange) {
-          try {
-            const listenerManager = instance.ctx.get(listenerCtx);
-            listenerManager.markdownUpdated((ctx: any, markdown: string, prevMarkdown: string) => {
-              if (markdown !== contentRef.current) {
-                contentRef.current = markdown;
-                onChange(markdown);
+          // Use timeout to allow editor to stabilize
+          setTimeout(() => {
+            // Extract content directly from the DOM (simple approach)
+            const editorElement = document.querySelector('.milkdown');
+            if (editorElement) {
+              const text = editorElement.textContent || '';
+              if (text !== contentRef.current) {
+                contentRef.current = text;
+                onChange(text);
+                if (debug) console.log('Content updated via observer:', text.substring(0, 30) + '...');
               }
-            });
-          } catch (error) {
-            if (debug) console.error('Error setting up listener:', error);
-          }
+            }
+          }, 100);
         }
-      }).catch(error => {
-        if (debug) console.error('Error creating editor:', error);
       });
       
-      return () => {
-        if (editorRef.current) {
-          editorRef.current.destroy();
-          editorRef.current = null;
-        }
-      };
-    }
-  }, [content, readOnly, onChange, debug]);
-  
-  // Update readOnly state when it changes
-  useEffect(() => {
-    if (editorRef.current) {
-      try {
-        const editor = editorRef.current.ctx.get('editor');
-        if (editor && editor.view) {
-          editor.view.setProps({
-            editable: () => !readOnly
-          });
-        }
-      } catch (error) {
-        if (debug) console.error('Error updating readOnly state:', error);
-      }
-    }
-  }, [readOnly, debug]);
-  
-  // Expose methods via ref
-  useImperativeHandle(ref, () => ({
-    getMarkdown: () => {
-      // Simplified approach - just return the current content
-      // If editorRef is not available, fall back to contentRef
-      return contentRef.current;
-    },
-    
-    setContent: (newContent: string) => {
-      // Update content ref first
-      contentRef.current = newContent;
+      observer.observe(milkdownElement, { 
+        childList: true, 
+        subtree: true, 
+        characterData: true 
+      });
       
-      // Then update editor if available
-      if (editorRef.current) {
-        try {
-          editorRef.current.destroy();
-          editorRef.current = null;
-          
-          // The editor will be recreated on next render
-          if (rootRef.current) {
-            const editor = Editor.make()
-              .config((ctx) => {
-                ctx.set(rootCtx, rootRef.current);
-                ctx.set(defaultValueCtx, newContent);
-                ctx.update(editorViewOptionsCtx, (prev) => ({
-                  ...prev,
-                  editable: () => !readOnly
-                }));
-              })
-              .config(nord)
-              .use(commonmark)
-              .use(gfm)
-              .use(listener);
-            
-            editor.create().then((instance) => {
-              editorRef.current = instance;
-              
-              // Set up listener for content changes again
-              if (onChange) {
-                try {
-                  const listenerManager = instance.ctx.get(listenerCtx);
-                  listenerManager.markdownUpdated((ctx: any, markdown: string) => {
-                    if (markdown !== contentRef.current) {
-                      contentRef.current = markdown;
-                      onChange(markdown);
-                    }
-                  });
-                } catch (error) {
-                  if (debug) console.error('Error setting up listener:', error);
-                }
-              }
-            });
-          }
-        } catch (error) {
-          if (debug) console.error('Error setting content:', error);
-        }
-      }
-    },
+      return () => observer.disconnect();
+    }, [onChange, debug]);
     
-    focus: () => {
-      if (editorRef.current) {
-        try {
-          const editor = editorRef.current.ctx.get('editor');
-          if (editor && editor.view) {
-            editor.view.focus();
-          }
-        } catch (error) {
-          if (debug) console.error('Error focusing editor:', error);
-        }
-      }
-    }
-  }));
+    return <Milkdown />;
+  };
   
+  // Return the editor wrapped in MilkdownProvider
   return (
     <div className="milkdown-wrapper">
-      <div ref={rootRef} className="milkdown"></div>
+      <MilkdownProvider>
+        <EditorComponent />
+      </MilkdownProvider>
     </div>
   );
 });

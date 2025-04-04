@@ -128,7 +128,10 @@ const SemanticComposer = forwardRef<SemanticComposerRef, SemanticComposerProps>(
     // Get current editor mode
     getCurrentMode: () => mode,
     
-    // Get milkdown instance (keeping method name for compatibility)
+    // Get editor instance
+    getEditorInstance: () => milkdownRef.current,
+    
+    // Legacy API for backward compatibility
     getCrepeInstance: () => milkdownRef.current,
     
     // Get current document ID
