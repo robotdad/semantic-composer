@@ -3,6 +3,11 @@ import './App.css';
 import { SemanticComposer } from './components';
 import { DocumentToLoad, SemanticComposerRef } from './types';
 
+// Import Milkdown theme styles
+import '@milkdown/theme-nord/style.css';
+// Add additional styling for better visibility
+import './milkdown-overrides.css';
+
 function App() {
   // Simple initialization - just start with default content
   // We'll handle active document loading properly in the editor component

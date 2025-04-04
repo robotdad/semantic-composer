@@ -1,0 +1,156 @@
+/* Override styles for better Milkdown theme integration */
+
+/* Ensure text is readable */
+.milkdown {
+  /* High contrast text */
+  color: #000 !important;
+  
+  /* Better background for editor */
+  background-color: #fff !important;
+  
+  /* Proper spacing */
+  padding: 16px !important;
+  margin: 0 !important;
+  
+  /* Clear size constraints */
+  min-height: 300px !important;
+  width: 100% !important;
+  
+  /* Better fonts */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
+  line-height: 1.6 !important;
+  font-size: 16px !important;
+  
+  /* Fix max width */
+  max-width: none !important;
+}
+
+/* Fix editor scrolling */
+.milkdown .ProseMirror {
+  overflow: auto !important;
+  outline: none !important;
+  min-height: 300px !important;
+}
+
+/* Specific element styles */
+.milkdown h1 { 
+  font-size: 2em !important; 
+  color: #000 !important;
+  margin: 1em 0 0.5em !important;
+  border-bottom: 1px solid #eee !important;
+  padding-bottom: 0.3em !important;
+}
+
+.milkdown h2 { 
+  font-size: 1.5em !important; 
+  color: #000 !important;
+  margin: 1em 0 0.5em !important;
+  border-bottom: 1px solid #eee !important;
+  padding-bottom: 0.3em !important;
+}
+
+.milkdown h3 { 
+  font-size: 1.3em !important; 
+  color: #000 !important;
+  margin: 1em 0 0.5em !important;
+}
+
+.milkdown h4 { 
+  font-size: 1.1em !important; 
+  color: #000 !important;
+  margin: 1em 0 0.5em !important;
+}
+
+.milkdown p {
+  margin: 0 0 1em 0 !important;
+  color: #000 !important;
+}
+
+.milkdown li {
+  color: #000 !important;
+}
+
+.milkdown a {
+  color: #0366d6 !important;
+  text-decoration: none !important;
+}
+
+.milkdown a:hover {
+  text-decoration: underline !important;
+}
+
+.milkdown code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace !important;
+  background-color: rgba(27, 31, 35, 0.05) !important;
+  border-radius: 3px !important;
+  padding: 0.2em 0.4em !important;
+  color: #000 !important;
+}
+
+.milkdown pre {
+  background-color: #f6f8fa !important;
+  border-radius: 3px !important;
+  padding: 16px !important;
+  overflow: auto !important;
+}
+
+.milkdown pre code {
+  background-color: transparent !important;
+  padding: 0 !important;
+}
+
+.milkdown blockquote {
+  color: #6a737d !important;
+  border-left: 0.25em solid #dfe2e5 !important;
+  padding: 0 1em !important;
+  margin: 0 0 1em 0 !important;
+}
+
+/* Make sure lists are visible */
+.milkdown ul, .milkdown ol {
+  margin: 0 0 1em 0 !important;
+  padding-left: 2em !important;
+  color: #000 !important;
+}
+
+/* Ensure tables are properly formatted */
+.milkdown table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 0 0 1em 0 !important;
+}
+
+.milkdown table th, .milkdown table td {
+  border: 1px solid #dfe2e5 !important;
+  padding: 6px 13px !important;
+  color: #000 !important;
+}
+
+.milkdown table th {
+  background-color: #f6f8fa !important;
+}
+
+/* Loading state */
+.milkdown-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+/* Raw editor improvements */
+.raw-editor {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 16px !important;
+  min-height: 300px !important;
+  color: #000 !important;
+  white-space: pre-wrap !important;
+  word-break: keep-all !important;
+}
